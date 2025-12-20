@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -7,7 +6,7 @@ export const runtime = 'nodejs'
 export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url)
 
-  const supabase = createServerClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
