@@ -150,6 +150,49 @@ export default function Dashboard() {
   const realtimeUserRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const bootstrap = async () => {
+      try {
+        setLoading(true);
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          logError('DashboardSessionError', sessionError);
+          setLoading(false);
+          return;
+        }
+
+        if (!session?.user) {
+          setLoading(false);
+          router.replace('/login');
+          return;
+        }
+
+        if (!isMounted) return;
+
+        setUser(session.user);
+        await fetchUserData(session.user.id);
+      } catch (err) {
+        logError('DashboardBootstrapError', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    bootstrap();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase, router]);
+
+  useEffect(() => {
     try {
       setHasAdminBackup(!!localStorage.getItem('admin_session_backup'));
       setIsImpersonating(localStorage.getItem('is_impersonating') === '1');
