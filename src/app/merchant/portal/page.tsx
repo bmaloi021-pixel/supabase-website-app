@@ -184,7 +184,7 @@ export default function MerchantPortal() {
       }
 
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      if (!session?.user?.id) {
         router.push('/merchant/login?next=/merchant/portal')
         return
       }

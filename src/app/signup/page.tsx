@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { handleSupabaseError, getFriendlyErrorMessage } from '@/lib/utils/error';
+import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
+import type { AppError } from '@/lib/utils/error';
 
-export default function SignUp() {
+function SignUpForm() {
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
@@ -30,33 +33,6 @@ export default function SignUp() {
   };
   const router = useRouter();
   const supabase = createClient();
-
-  // Define types for better type safety
-  type AuthError = {
-    message: string;
-    status?: number;
-    name?: string;
-  };
-
-  type SignUpError = Error & {
-    status?: number;
-    code?: string;
-    details?: string;
-    hint?: string;
-  };
-  
-  // Function to check if username is available
-  const checkUsernameAvailability = async (username: string): Promise<boolean> => {
-    const normalized = normalizeUsername(username);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', normalized)
-      .single();
-    
-    // If there's an error or no data, username is available
-    return !data && !error;
-  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,8 +64,6 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      console.log('Signup attempt with username:', normalizedUsername);
-
       // Sign up with system email and password
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: systemEmail,
@@ -98,61 +72,29 @@ export default function SignUp() {
           data: {
             username: normalizedUsername,
             first_name: formData.firstName,
-            last_name: formData.lastName,
-            user_metadata: {
-              username: normalizedUsername,
-              display_name: `${formData.firstName} ${formData.lastName}`.trim() || normalizedUsername,
-              system_email: systemEmail
-            }
+            last_name: formData.lastName
           },
           emailRedirectTo: `${window.location.origin}/dashboard`
         }
       });
 
-      if (signUpError) throw signUpError;
-
-      if (!signUpData.user) {
-        throw new Error('No user data returned from authentication');
-      }
+      if (signUpError) throw handleSupabaseError(signUpError);
+      const user = signUpData?.user;
+      if (!user) throw new Error('No user data returned from authentication');
       
       // Store user data in profiles table
-      const profileData = {
-        id: signUpData.user.id,
-        username: normalizedUsername,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      console.log('Creating profile with data:', profileData);
-      
-      const { data: profileResponse, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
-        .upsert(profileData)
-        .select();
-
-      console.log('Profile creation response:', { profileResponse, profileError });
-
-      if (profileError) {
-        console.error('Profile error details:', {
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-          code: profileError.code
+        .upsert({
+          id: user.id,
+          username: normalizedUsername,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
-        throw profileError;
-      }
 
-      // Ensure we have an authenticated session (required for referrals insert with RLS)
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: systemEmail,
-          password: formData.password,
-        });
-        if (signInError) throw signInError;
-      }
+      if (profileError) throw handleSupabaseError(profileError);
 
       // If coming from a referral link, record the referrer
       if (referralCode) {
@@ -162,15 +104,13 @@ export default function SignUp() {
         if (!referrerError && referrerId) {
           const { error: referralInsertError } = await supabase.from('referrals').insert({
             referrer_id: referrerId,
-            referred_id: signUpData.user.id,
+            referred_id: user.id,
             status: 'active',
           });
 
           if (referralInsertError) {
             console.error('Referral insert error:', referralInsertError);
           }
-        } else {
-          console.warn('Invalid referral code:', referralCode, referrerError);
         }
       }
 
@@ -178,30 +118,7 @@ export default function SignUp() {
       alert('Account created successfully! You are now logged in.');
       router.push('/dashboard');
     } catch (error) {
-      const err = error as SignUpError;
-      const errorDetails = {
-        name: err.name,
-        message: err.message,
-        status: err.status,
-        code: err.code,
-        stack: err.stack,
-        timestamp: new Date().toISOString()
-      };
-      
-      console.error('Signup error details:', errorDetails);
-      
-      // User-friendly error messages
-      if (err.message?.includes('email')) {
-        setError('There was an issue with the email address. Please try a different username.');
-      } else if (err.status === 400) {
-        setError('Invalid request. Please check your details and try again.');
-      } else if (err.status === 409) {
-        setError('This username is already taken. Please choose another one.');
-      } else if (err.message) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred. Please try again or contact support.');
-      }
+      setError(getFriendlyErrorMessage(error as AppError));
     } finally {
       setLoading(false);
     }
@@ -221,11 +138,9 @@ export default function SignUp() {
             </Link>
           </p>
         </div>
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
+        
+        <ErrorDisplay error={error} />
+        
         <form className="mt-8 space-y-4" onSubmit={handleSignUp}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -321,12 +236,6 @@ export default function SignUp() {
             </div>
           </div>
 
-          {error && (
-            <div className="text-red-600 text-sm text-center p-3 bg-red-50 rounded-md">
-              {error}
-            </div>
-          )}
-
           <div className="text-xs text-gray-500 text-center">
             By signing up, you agree to our Terms of Service and Privacy Policy
           </div>
@@ -343,5 +252,17 @@ export default function SignUp() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function SignUp() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    }>
+      <SignUpForm />
+    </Suspense>
   );
 }

@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
   webpack(config) {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = config.resolve.alias ?? {};
-    config.resolve.mainFields = ['main', 'module'];
+    config.resolve.exportsFields = [];
+    config.resolve.conditionNames = ['require', 'node'];
     return config;
   },
 };

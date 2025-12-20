@@ -9,30 +9,38 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get('next') || '/dashboard';
 
   if (code) {
-    const cookieStore = cookies();
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.delete({ name, ...options });
-          },
-        },
-      }
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      console.error('Error exchanging code for session:', error);
-      return NextResponse.redirect(`${requestUrl.origin}/login?error=auth-error`);
-    }
+    // exchangeCodeForSession not available in @supabase/supabase-js@1.0.0
+    // const { error } = await supabase.auth.exchangeCodeForSession(code);
+    // if (error) {
+    //   console.error('Error exchanging code for session:', error);
+    //   return NextResponse.redirect(`${requestUrl.origin}/login?error=auth-error`);
+    // }
+
+    // Session handling not available in @supabase/supabase-js@1.0.0
+    // const { data: { session } } = await supabase.auth.getSession();
+    // if (session) {
+    //   const response = NextResponse.redirect(`${requestUrl.origin}${next}`);
+    //   response.cookies.set('sb-access-token', session.access_token, {
+    //     path: '/',
+    //     secure: true,
+    //     httpOnly: true,
+    //     sameSite: 'lax',
+    //     maxAge: session.expires_in,
+    //   });
+    //   response.cookies.set('sb-refresh-token', session.refresh_token, {
+    //     path: '/',
+    //     secure: true,
+    //     httpOnly: true,
+    //     sameSite: 'lax',
+    //     maxAge: 60 * 60 * 24 * 365, // 1 year
+    //   });
+    //   return response;
+    // }
   }
 
   // URL to redirect to after sign in process completes

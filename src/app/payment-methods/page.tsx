@@ -101,7 +101,7 @@ export default function PaymentMethodsPage() {
 
     if (signedError) throw signedError
 
-    setQrUrls((prev) => ({ ...prev, [methodId]: signed.signedUrl }))
+    setQrUrls((prev) => ({ ...prev, [methodId]: signed?.signedUrl ?? '' }))
   }
 
   const removeQrCode = async (uid: string, methodId: string, path?: string | null) => {
@@ -225,18 +225,14 @@ export default function PaymentMethodsPage() {
       setError(null)
       try {
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-        if (sessionError) {
-          setError(sessionError.message)
+        if (sessionError || !sessionData?.session?.user?.id) {
+          setError(sessionError?.message || 'No active session')
           setLoading(false)
-          return
-        }
-
-        const session = sessionData?.session
-        if (!session?.user?.id) {
           router.push('/login')
           return
         }
 
+        const session = sessionData.session
         const nextRole = await reloadRole(session.user.id)
         if (!nextRole) {
           setLoading(false)

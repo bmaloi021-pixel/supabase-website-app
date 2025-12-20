@@ -43,14 +43,8 @@ export default function AdminPage() {
   useEffect(() => {
     const init = async () => {
       setError(null);
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        setError(sessionError.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!session) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !session.user) {
         router.push('/login');
         setLoading(false);
         return;
@@ -87,8 +81,8 @@ export default function AdminPage() {
   const reloadProfiles = useCallback(async () => {
     try {
       setError(null);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch('/api/admin/users', {
         method: 'GET',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -104,61 +98,7 @@ export default function AdminPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!canAccess) return;
-
-    const channel = supabase
-      .channel('admin-users-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeProfilesRefreshAtRef.current < 800) return;
-          if (realtimeProfilesRefreshInFlightRef.current) return;
-          lastRealtimeProfilesRefreshAtRef.current = now;
-          realtimeProfilesRefreshInFlightRef.current = true;
-          reloadProfiles().finally(() => {
-            realtimeProfilesRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'commissions' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeProfilesRefreshAtRef.current < 800) return;
-          if (realtimeProfilesRefreshInFlightRef.current) return;
-          lastRealtimeProfilesRefreshAtRef.current = now;
-          realtimeProfilesRefreshInFlightRef.current = true;
-          reloadProfiles().finally(() => {
-            realtimeProfilesRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_packages' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeProfilesRefreshAtRef.current < 800) return;
-          if (realtimeProfilesRefreshInFlightRef.current) return;
-          lastRealtimeProfilesRefreshAtRef.current = now;
-          realtimeProfilesRefreshInFlightRef.current = true;
-          reloadProfiles().finally(() => {
-            realtimeProfilesRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {
-        // ignore
-      }
-    };
+    // Realtime not available in @supabase/supabase-js@1.0.0
   }, [canAccess, reloadProfiles, supabase]);
 
   const updateRole = async (userId: string, role: Role, prevRole?: Role) => {
@@ -166,8 +106,8 @@ export default function AdminPage() {
     setError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {

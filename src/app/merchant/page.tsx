@@ -12,7 +12,7 @@ export default function MerchantHome() {
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      if (!session?.user?.id) {
         router.push('/merchant/login?next=/merchant')
         return
       }

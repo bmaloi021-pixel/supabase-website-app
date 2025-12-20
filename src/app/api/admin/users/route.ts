@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -9,18 +10,19 @@ async function getAdminClientAndAssertAdmin(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  const authHeader = request.headers.get('authorization') ?? ''
-  const jwt = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7) : null
-  if (!jwt) {
-    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-
-  const anonClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const anonClient = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll() {
+        // API routes don't need to set cookies
+      },
+    },
   })
 
-  const { data: userData, error: userError } = await anonClient.auth.getUser(jwt)
-  if (userError || !userData?.user) {
+  const { data: { user: userData } } = await anonClient.auth.getUser()
+  if (!userData) {
     return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
 
@@ -34,14 +36,12 @@ async function getAdminClientAndAssertAdmin(request: NextRequest) {
     }
   }
 
-  const adminClient = createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+  const adminClient = createClient(url, serviceKey)
 
   const { data: myProfile, error: profileError } = await adminClient
     .from('profiles')
     .select('role')
-    .eq('id', userData.user.id)
+    .eq('id', userData.id)
     .single()
 
   if (profileError || myProfile?.role !== 'admin') {

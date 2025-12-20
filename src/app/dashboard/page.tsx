@@ -84,6 +84,10 @@ type PublicPaymentMethod = {
   qr_code_path: string | null;
 };
 
+const logError = (errorName: string, error: any) => {
+  console.error(`[${errorName}]`, error);
+};
+
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -307,8 +311,9 @@ export default function Dashboard() {
       .select('*')
       .order('level', { ascending: true });
 
-    console.log('Package data:', packageData, 'Error:', packageError);
-    if (!packageError && packageData) {
+    if (packageError) {
+      logError('PackageError', packageError);
+    } else if (packageData) {
       const byId = new Map<string, Package>();
       for (const p of packageData as Package[]) {
         if (!p?.id) continue;
@@ -334,15 +339,7 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching public payment methods:', {
-          status,
-          statusText,
-          message: error.message,
-          code: (error as any)?.code,
-          details: (error as any)?.details,
-          hint: (error as any)?.hint,
-          raw: error,
-        });
+        logError('PublicPaymentMethodsError', error);
         setPublicPaymentMethods([]);
         setPublicPaymentQrUrls({});
         return;
@@ -372,7 +369,7 @@ export default function Dashboard() {
         setSelectedPublicPaymentMethodId(rows[0].id);
       }
     } catch (e) {
-      console.error('Unexpected error fetching public payment methods:', e);
+      logError('PublicPaymentMethodsUnexpectedError', e);
       setPublicPaymentMethods([]);
       setPublicPaymentQrUrls({});
     }
@@ -389,15 +386,74 @@ export default function Dashboard() {
   }, [showTopUpForm, user?.id]);
 
   const backupAdminSession = async () => {
-    const { data } = await supabase.auth.getSession();
-    if (!data?.session) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) return;
 
     try {
-      localStorage.setItem('admin_session_backup', JSON.stringify(data.session));
-      localStorage.setItem('admin_user_id_backup', data.session.user.id);
+      localStorage.setItem('admin_session_backup', JSON.stringify(session));
+      localStorage.setItem('admin_user_id_backup', session.user.id);
       setHasAdminBackup(true);
     } catch {
       // ignore
+    }
+  };
+
+  const handleImpersonate = async (targetUserId: string) => {
+    if (!isAdmin) return;
+    setImpersonateError(null);
+    setImpersonateLoadingId(targetUserId);
+    try {
+      await backupAdminSession();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Missing admin session token');
+      }
+
+      const res = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: targetUserId }),
+      });
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        throw new Error((json as any)?.error ?? 'Failed to impersonate user');
+      }
+
+      const accessToken = (json as any)?.access_token;
+      const refreshToken = (json as any)?.refresh_token;
+      if (!accessToken || !refreshToken) {
+        throw new Error('No impersonation session returned');
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) {
+        throw error;
+      }
+
+      try {
+        localStorage.setItem('is_impersonating', '1');
+      } catch {
+        // ignore localStorage issues
+      }
+      setIsImpersonating(true);
+
+      window.location.href = '/dashboard';
+    } catch (err) {
+      setImpersonateError((err as any)?.message ?? 'Failed to impersonate user');
+      try {
+        localStorage.removeItem('is_impersonating');
+      } catch {
+        // ignore
+      }
+    } finally {
+      setImpersonateLoadingId(null);
     }
   };
 
@@ -438,155 +494,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleImpersonate = async (targetUserId: string) => {
-    if (!isAdmin) return;
-    if (!targetUserId) return;
-    setImpersonateLoadingId(targetUserId);
-    setImpersonateError(null);
-
-    try {
-      await backupAdminSession();
-      try {
-        localStorage.setItem('is_impersonating', '1');
-        setIsImpersonating(true);
-      } catch {
-        // ignore
-      }
-
-      const res = await fetch('/api/admin/impersonate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: targetUserId }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(json?.error || 'Failed to impersonate');
-      }
-
-      if (!json?.action_link) throw new Error('No action link returned');
-      window.location.href = json.action_link;
-    } catch (e) {
-      setImpersonateError((e as any)?.message ?? 'Failed to impersonate');
-      setImpersonateLoadingId(null);
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    console.log('[DEBUG] Dashboard useEffect mounted');
-    
-    const getSession = async () => {
-      console.log('[DEBUG] Starting getSession');
-      try {
-        setLoading(true);
-        console.log('[DEBUG] Loading set to true');
-        
-        console.log('[DEBUG] Calling supabase.auth.getSession()');
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        console.log('[DEBUG] getSession response:', { hasSession: !!session, error: sessionError });
-        
-        if (!session || sessionError) {
-          if (sessionError) {
-            console.error('[ERROR] Error getting session:', sessionError);
-          } else {
-            console.warn('[WARN] No session found');
-          }
-          router.push('/login');
-          return;
-        }
-
-        if (!isMounted) {
-          console.log('[DEBUG] Component unmounted, aborting');
-          return;
-        }
-        
-        console.log('[DEBUG] Setting user and fetching user data');
-        setUser(session.user);
-        
-        console.log('[DEBUG] Calling fetchUserData');
-        await fetchUserData(session.user.id, isMounted);
-        console.log('[DEBUG] fetchUserData completed');
-        
-      } catch (error) {
-        console.error('[ERROR] in getSession:', error);
-        // Don't redirect on error - let the user see any error messages
-      } finally {
-        if (isMounted) {
-          console.log('[DEBUG] Setting loading to false');
-          setLoading(false);
-        } else {
-          console.log('[DEBUG] Not setting loading state - component unmounted');
-        }
-      }
-    };
-
-    // Add a small delay to help with debugging
-    const timer = setTimeout(() => {
-      console.log('[DEBUG] Starting getSession after delay');
-      getSession();
-    }, 100);
-    
-    // Cleanup function to prevent state updates after unmount
-    return () => {
-      console.log('[DEBUG] Dashboard useEffect cleanup');
-      isMounted = false;
-      clearTimeout(timer);
-    };
-  }, [router, supabase.auth]);
-
-  const handleCreatePackage = async () => {
-    if (!profile?.role || profile.role !== 'admin') return;
-    setPackageAdminLoading(true);
-    setPackageAdminError(null);
-
-    try {
-      const price = Number(newPackage.price);
-      const commission_rate = Number(newPackage.commission_rate);
-      const level = Number(newPackage.level);
-      const max_referrals = newPackage.max_referrals.trim() === '' ? null : Number(newPackage.max_referrals);
-      const maturity_days = newPackage.maturity_days.trim() === '' ? 0 : Number(newPackage.maturity_days);
-
-      if (!newPackage.name.trim()) throw new Error('Package name is required');
-      if (!Number.isFinite(price)) throw new Error('Price must be a number');
-      if (!Number.isFinite(commission_rate)) throw new Error('Commission rate must be a number');
-      if (!Number.isFinite(level)) throw new Error('Level must be a number');
-      if (max_referrals !== null && !Number.isFinite(max_referrals)) throw new Error('Max referrals must be a number');
-      if (!Number.isFinite(maturity_days) || maturity_days < 0) throw new Error('Maturity days must be a number (0 or more)');
-
-      const { error } = await supabase.from('packages').insert({
-        name: newPackage.name.trim(),
-        description: newPackage.description.trim(),
-        price,
-        commission_rate,
-        level,
-        max_referrals,
-        maturity_days,
-      });
-
-      if (error) {
-        setPackageAdminError(error.message);
-        return;
-      }
-
-      setIsAddPackageOpen(false);
-      setNewPackage({
-        name: '',
-        description: '',
-        price: '',
-        commission_rate: '',
-        level: '',
-        max_referrals: '',
-        maturity_days: '',
-      });
-      await refreshPackages();
-    } catch (e) {
-      setPackageAdminError((e as any)?.message ?? 'Failed to create package');
-    } finally {
-      setPackageAdminLoading(false);
-    }
-  };
-
   const handleDeletePackage = async (pkg: Package) => {
     if (!profile?.role || profile.role !== 'admin') return;
     const ok = window.confirm(`Delete package "${pkg.name}"? This cannot be undone.`);
@@ -606,66 +513,87 @@ export default function Dashboard() {
     }
   };
 
+  const handleCreatePackage = async () => {
+    if (!profile?.role || profile.role !== 'admin') return;
+
+    const parsedPayload = {
+      name: newPackage.name.trim(),
+      description: newPackage.description.trim() || null,
+      price: Number(newPackage.price) || 0,
+      commission_rate: Number(newPackage.commission_rate) || 0,
+      level: Number(newPackage.level) || 0,
+      max_referrals: newPackage.max_referrals ? Number(newPackage.max_referrals) : null,
+      maturity_days: Number(newPackage.maturity_days) || 0,
+    };
+
+    if (!parsedPayload.name || parsedPayload.price <= 0) {
+      setPackageAdminError('Please provide a package name and valid price.');
+      return;
+    }
+
+    setPackageAdminLoading(true);
+    setPackageAdminError(null);
+    try {
+      const { error } = await supabase.from('packages').insert(parsedPayload);
+      if (error) {
+        setPackageAdminError(error.message);
+        return;
+      }
+      setNewPackage({
+        name: '',
+        description: '',
+        price: '',
+        commission_rate: '',
+        level: '',
+        max_referrals: '',
+        maturity_days: '',
+      });
+      setIsAddPackageOpen(false);
+      await refreshPackages();
+    } catch (err) {
+      setPackageAdminError((err as any)?.message ?? 'Failed to create package');
+    } finally {
+      setPackageAdminLoading(false);
+    }
+  };
+
   const fetchTopUpRequests = async (userId?: string) => {
     if (!userId) {
-      console.warn('No user ID provided to fetchTopUpRequests');
+      logError('FetchTopUpRequestsError', 'No user ID provided');
       return [];
     }
 
     try {
-      console.log(`[DEBUG] Fetching top-up requests for user: ${userId}`);
-      const { data, error, status, statusText } = await supabase
+      const { data, error } = await supabase
         .from('top_up_requests')
         .select('*')
         .eq('user_id', userId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      console.log('[DEBUG] Top-up requests response:', {
-        data,
-        error,
-        status,
-        statusText
-      });
-      
       if (error) {
-        console.error('Error fetching top-up requests:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
+        logError('FetchTopUpRequestsError', error);
         return [];
       }
       
       return data || [];
     } catch (err) {
-      console.error('Unexpected error in fetchTopUpRequests:', {
-        error: err,
-        message: (err as Error)?.message,
-        stack: (err as Error)?.stack
-      });
+      logError('FetchTopUpRequestsUnexpectedError', err);
       return [];
     }
   };
 
   const fetchUserData = async (userId: string, isMounted?: boolean) => {
-    console.log('[DEBUG] Starting fetchUserData for user:', userId);
-    
     try {
       // 1. Fetch user profile
-      console.log('[DEBUG] Fetching profile for user:', userId);
-      const profileStart = performance.now();
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-      console.log(`[DEBUG] Profile fetch completed in ${(performance.now() - profileStart).toFixed(2)}ms`);
       
       // If profile doesn't exist, create it
       if ((profileError && profileError.code === 'PGRST116') || (!profileData && profileError)) {
-        console.log('[DEBUG] Profile not found, creating new profile...');
         try {
           const newProfileData = {
             id: userId,
@@ -674,7 +602,6 @@ export default function Dashboard() {
             last_name: 'Name',
             updated_at: new Date().toISOString(),
           };
-          console.log('[DEBUG] Creating profile with data:', newProfileData);
           
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
@@ -684,32 +611,18 @@ export default function Dashboard() {
             
           if (createError) throw createError;
             
-          console.log('[DEBUG] Profile created successfully:', newProfile);
           setProfile(newProfile);
         } catch (createError) {
-          console.error('[ERROR] Failed to create profile:', {
-            message: (createError as any)?.message,
-            code: (createError as any)?.code,
-            details: (createError as any)?.details,
-            hint: (createError as any)?.hint,
-            status: (createError as any)?.status,
-            raw: createError,
-          });
+          logError('CreateProfileError', createError);
           throw new Error('Failed to create user profile');
         }
       } else if (profileData) {
-        console.log('[DEBUG] Profile found:', profileData);
-        if ((profileData as any)?.role === 'merchant') {
-          console.log('[DEBUG] Merchant user detected, redirecting...');
-          router.push('/merchant/login?next=/merchant/portal');
-          return;
-        }
         setProfile(profileData);
       }
 
       // First, check if we have a valid user ID
       if (!userId) {
-        console.warn('No user ID available to fetch data');
+        logError('FetchUserDataError', 'No user ID available to fetch data');
         return;
       }
 
@@ -805,7 +718,7 @@ export default function Dashboard() {
             setTopUpRequests(topUpRequestsData);
           }
         } catch (error) {
-          console.error('Failed to fetch top-up requests:', error);
+          logError('FetchTopUpRequestsError', error);
           if (isMounted !== false) {
             setTopUpRequests([]);
           }
@@ -817,27 +730,22 @@ export default function Dashboard() {
         }
       }
 
-      console.log('Referral data:', referralData, 'Error:', referralError);
       if (referralData) {
         setReferrals(referralData);
       }
 
-      console.log('Commission data:', commissionData, 'Error:', commissionError);
       if (commissionData) {
         setCommissions(commissionData);
       }
 
-      console.log('User packages data:', userPackagesData, 'Error:', userPackagesError);
       const activeRows = ((userPackagesData ?? []) as any[]).filter((r) => !!r?.packages);
       setActiveUserPackages(activeRows as any);
       if (activeRows.length > 0) {
         setUserPackageRow(activeRows[0] as any);
       } else {
-        console.log('No active package found');
         setUserPackageRow(null);
       }
 
-      console.log('Availed packages data:', availedPackagesData, 'Error:', availedPackagesError);
       const availedRows = ((availedPackagesData ?? []) as any[]).filter((r) => !!r?.packages);
       setAvailedUserPackages(availedRows as any);
 
@@ -847,82 +755,14 @@ export default function Dashboard() {
         setWithdrawCandidateRow(null);
       }
     } catch (error) {
-      console.error('Error in fetchUserData:', error);
+      logError('FetchUserDataError', error);
       throw error; // Re-throw to be caught by the caller
     }
   };
 
   useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel(`dashboard-user-realtime-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUserRefreshAtRef.current < 600) return;
-          if (realtimeUserRefreshInFlightRef.current) return;
-          lastRealtimeUserRefreshAtRef.current = now;
-          realtimeUserRefreshInFlightRef.current = true;
-          fetchUserData(user.id, true).finally(() => {
-            realtimeUserRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'commissions', filter: `user_id=eq.${user.id}` },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUserRefreshAtRef.current < 600) return;
-          if (realtimeUserRefreshInFlightRef.current) return;
-          lastRealtimeUserRefreshAtRef.current = now;
-          realtimeUserRefreshInFlightRef.current = true;
-          fetchUserData(user.id, true).finally(() => {
-            realtimeUserRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_packages', filter: `user_id=eq.${user.id}` },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUserRefreshAtRef.current < 600) return;
-          if (realtimeUserRefreshInFlightRef.current) return;
-          lastRealtimeUserRefreshAtRef.current = now;
-          realtimeUserRefreshInFlightRef.current = true;
-          fetchUserData(user.id, true).finally(() => {
-            realtimeUserRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'top_up_requests', filter: `user_id=eq.${user.id}` },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUserRefreshAtRef.current < 600) return;
-          if (realtimeUserRefreshInFlightRef.current) return;
-          lastRealtimeUserRefreshAtRef.current = now;
-          realtimeUserRefreshInFlightRef.current = true;
-          fetchUserData(user.id, true).finally(() => {
-            realtimeUserRefreshInFlightRef.current = false;
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {
-        // ignore
-      }
-    };
-  }, [supabase, user?.id]);
+    // Realtime not available in @supabase/supabase-js@1.0.0
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -942,25 +782,7 @@ export default function Dashboard() {
 
       if (error) {
         const raw = error as any;
-        console.error('Buy package error:', {
-          message: raw?.message,
-          code: raw?.code,
-          details: raw?.details,
-          hint: raw?.hint,
-          status: raw?.status,
-          statusText: raw?.statusText,
-          name: raw?.name,
-          stack: raw?.stack,
-          ownKeys: raw ? Object.getOwnPropertyNames(raw) : [],
-          stringified: (() => {
-            try {
-              return JSON.stringify(raw);
-            } catch {
-              return '[unstringifiable]';
-            }
-          })(),
-          raw,
-        });
+        logError('BuyPackageError', raw);
         setPackagePurchaseError(
           raw?.message ??
             raw?.details ??
@@ -972,15 +794,7 @@ export default function Dashboard() {
 
       const returnedBalanceRaw = (data as any)?.balance;
       const returnedBalanceBeforeRaw = (data as any)?.balance_before;
-      console.log('Buy package RPC result:', {
-        balance_before: returnedBalanceBeforeRaw,
-        balance: returnedBalanceRaw,
-        price: (data as any)?.price,
-        package_id: (data as any)?.package_id,
-        user_package_id: (data as any)?.user_package_id,
-        raw: data,
-      });
-
+      
       if (returnedBalanceRaw !== undefined && returnedBalanceRaw !== null) {
         const returnedBalance = Number(returnedBalanceRaw);
         if (Number.isFinite(returnedBalance)) {
@@ -1007,8 +821,7 @@ export default function Dashboard() {
         .eq('user_id', user.id)
         .eq('status', 'active')
         .is('withdrawn_at', null)
-        .order('created_at', { ascending: false })
-        ;
+        .order('created_at', { ascending: false });
 
       if (!userPackagesError) {
         const activeRows = ((userPackagesData ?? []) as any[]).filter((r) => !!r?.packages);
@@ -1096,7 +909,7 @@ export default function Dashboard() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Deactivate package error:', error);
+        logError('DeactivatePackageError', error);
         return;
       }
 
@@ -1119,8 +932,7 @@ export default function Dashboard() {
         .eq('user_id', user.id)
         .eq('status', 'active')
         .is('withdrawn_at', null)
-        .order('created_at', { ascending: false })
-        ;
+        .order('created_at', { ascending: false });
 
       if (!nextActiveError) {
         const activeRows = ((nextActives ?? []) as any[]).filter((r) => !!r?.packages);
@@ -1288,23 +1100,7 @@ export default function Dashboard() {
       setAvailedUserPackages(availedRows as any);
     } catch (error) {
       const raw = error as any;
-      console.error('Withdraw package error:', {
-        message: raw?.message,
-        code: raw?.code,
-        details: raw?.details,
-        hint: raw?.hint,
-        name: raw?.name,
-        stack: raw?.stack,
-        ownKeys: raw ? Object.getOwnPropertyNames(raw) : [],
-        stringified: (() => {
-          try {
-            return JSON.stringify(raw);
-          } catch {
-            return '[unstringifiable]';
-          }
-        })(),
-        raw,
-      });
+      logError('WithdrawPackageError', raw);
       const msg = raw?.message ?? 'Failed to withdraw';
       const code = raw?.code ? ` (${raw.code})` : '';
       const full = `${msg}${code}`;
@@ -1328,8 +1124,8 @@ export default function Dashboard() {
     setUsersListError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch('/api/admin/users', {
         method: 'GET',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -1340,6 +1136,7 @@ export default function Dashboard() {
       }
       setUsersList((((json as any)?.profiles ?? []) as UserRow[]) ?? []);
     } catch (e) {
+      logError('ReloadUsersListError', e);
       setUsersListError((e as any)?.message ?? 'Failed to load users');
       setUsersList([]);
     } finally {
@@ -1352,50 +1149,7 @@ export default function Dashboard() {
   }, [reloadUsersList]);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    if (activeTab !== 'users') return;
-
-    const channel = supabase
-      .channel('dashboard-admin-users-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUsersListRefreshAtRef.current < 600) return;
-          lastRealtimeUsersListRefreshAtRef.current = now;
-          reloadUsersList();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'commissions' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUsersListRefreshAtRef.current < 600) return;
-          lastRealtimeUsersListRefreshAtRef.current = now;
-          reloadUsersList();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_packages' },
-        () => {
-          const now = Date.now();
-          if (now - lastRealtimeUsersListRefreshAtRef.current < 600) return;
-          lastRealtimeUsersListRefreshAtRef.current = now;
-          reloadUsersList();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {
-        // ignore
-      }
-    };
+    // Realtime not available in @supabase/supabase-js@1.0.0
   }, [activeTab, isAdmin, reloadUsersList, supabase]);
 
   const calculateTotalEarnings = () => {
@@ -1437,8 +1191,8 @@ export default function Dashboard() {
     setUsersListError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
@@ -1463,6 +1217,7 @@ export default function Dashboard() {
           setProfile((p) => (p ? ({ ...p, role: prevRole } as any) : p));
         }
       }
+      logError('UpdateUserRoleError', e);
       setUsersListError((e as any)?.message ?? 'Failed to update role');
     } finally {
       setUserRoleSavingId(null);
@@ -1500,25 +1255,7 @@ export default function Dashboard() {
 
       if (error) {
         const raw = error as any;
-        console.error('Database insert error (top_up_requests):', {
-          status,
-          statusText,
-          message: raw?.message,
-          code: raw?.code,
-          details: raw?.details,
-          hint: raw?.hint,
-          name: raw?.name,
-          stack: raw?.stack,
-          ownKeys: raw ? Object.getOwnPropertyNames(raw) : [],
-          stringified: (() => {
-            try {
-              return JSON.stringify(raw);
-            } catch {
-              return '[unstringifiable]';
-            }
-          })(),
-          raw,
-        });
+        logError('TopUpError', raw);
         throw error;
       }
 
@@ -1527,23 +1264,7 @@ export default function Dashboard() {
     
     } catch (error) {
       const raw = error as any;
-      console.error('Top-up error:', {
-        message: raw?.message,
-        code: raw?.code,
-        details: raw?.details,
-        hint: raw?.hint,
-        name: raw?.name,
-        stack: raw?.stack,
-        ownKeys: raw ? Object.getOwnPropertyNames(raw) : [],
-        stringified: (() => {
-          try {
-            return JSON.stringify(raw);
-          } catch {
-            return '[unstringifiable]';
-          }
-        })(),
-        raw,
-      });
+      logError('TopUpError', raw);
       const msg = raw?.message ?? 'Failed to process payment. Please try again.';
       const code = raw?.code ? ` (${raw.code})` : '';
       setPaymentError(`${msg}${code}`);
@@ -1820,7 +1541,7 @@ export default function Dashboard() {
             try {
               await navigator.clipboard.writeText(link);
             } catch (e) {
-              console.error('Copy failed:', e);
+              logError('CopyReferralLinkError', e);
             }
           }}
           disabled={!profile?.referral_code}
@@ -2163,21 +1884,11 @@ export default function Dashboard() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Amount
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Level
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date
-              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -2243,94 +1954,94 @@ export default function Dashboard() {
       ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {packages.map((pkg) => (
-          (() => {
-            const activeRowsForPkg = activeUserPackages.filter((up) => up?.packages?.id === pkg.id || up?.package_id === pkg.id);
-            const isActive = activeRowsForPkg.length > 0;
-            const activeRowForDisplay = activeRowsForPkg[0] ?? null;
-            const isBusy = packageActionLoadingId === pkg.id;
-            return (
-          <div key={pkg.id} className={`bg-white rounded-lg shadow p-6 ${
-            isActive ? 'ring-2 ring-indigo-500' : ''
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{pkg.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">{pkg.description}</p>
+        {packages.map((pkg) => {
+          const activeRowsForPkg = activeUserPackages.filter((up) => up?.packages?.id === pkg.id || up?.package_id === pkg.id);
+          const isActive = activeRowsForPkg.length > 0;
+          const activeRowForDisplay = activeRowsForPkg[0] ?? null;
+          const isBusy = packageActionLoadingId === pkg.id;
+
+          return (
+            <div
+              key={pkg.id}
+              className={`bg-white rounded-lg shadow p-6 ${isActive ? 'ring-2 ring-indigo-500' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{pkg.name}</h3>
+                  <p className="text-sm text-gray-500 mt-1">{pkg.description}</p>
+                </div>
               </div>
+
+              <p className="text-2xl font-bold text-gray-900 mt-4">{formatCurrency(pkg.price)}</p>
+              <p className="text-sm text-gray-500 mt-1">{pkg.commission_rate}% commission</p>
+              {isActive && activeRowsForPkg.length > 1 ? (
+                <p className="text-xs text-indigo-700 mt-2">Active: {activeRowsForPkg.length}</p>
+              ) : null}
+              {isActive && getMaturityLabel(activeRowForDisplay) ? (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600">Matures: {getMaturityLabel(activeRowForDisplay)}</p>
+                  {renderMaturityProgressBar(activeRowForDisplay)}
+                </div>
+              ) : null}
+              {isActive && activeRowForDisplay?.withdrawn_at ? (
+                <p className="text-xs text-green-700 mt-1">
+                  Withdrawn: {new Date(activeRowForDisplay.withdrawn_at).toLocaleString()}
+                </p>
+              ) : null}
+              <p className="text-sm text-gray-500 mt-1">Max referrals: {pkg.max_referrals || 'Unlimited'}</p>
+
+              {profile?.role === 'admin' ? (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {isActive ? (
+                    <button
+                      onClick={() => handleDeactivatePackage(pkg)}
+                      disabled={isBusy}
+                      className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {isBusy ? 'Working…' : 'Deactivate'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleActivatePackage(pkg)}
+                      disabled={isBusy}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {isBusy ? 'Working…' : 'Activate'}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleDeletePackage(pkg)}
+                    disabled={packageAdminLoading}
+                    className="w-full bg-white text-red-700 py-2 px-4 rounded-md border border-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                  >
+                    {packageAdminLoading ? 'Working…' : 'Delete'}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  {isActive ? (
+                    <button
+                      onClick={() => handleDeactivatePackage(pkg)}
+                      disabled={isBusy}
+                      className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {isBusy ? 'Working…' : 'Deactivate'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleActivatePackage(pkg)}
+                      disabled={isBusy}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {isBusy ? 'Working…' : 'Buy Package'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-
-            <p className="text-2xl font-bold text-gray-900 mt-4">{formatCurrency(pkg.price)}</p>
-            <p className="text-sm text-gray-500 mt-1">{pkg.commission_rate}% commission</p>
-            {isActive && activeRowsForPkg.length > 1 ? (
-              <p className="text-xs text-indigo-700 mt-2">Active: {activeRowsForPkg.length}</p>
-            ) : null}
-            {isActive && getMaturityLabel(activeRowForDisplay) ? (
-              <div className="mt-2">
-                <p className="text-xs text-gray-600">Matures: {getMaturityLabel(activeRowForDisplay)}</p>
-                {renderMaturityProgressBar(activeRowForDisplay)}
-              </div>
-            ) : null}
-            {isActive && activeRowForDisplay?.withdrawn_at ? (
-              <p className="text-xs text-green-700 mt-1">Withdrawn: {new Date(activeRowForDisplay.withdrawn_at).toLocaleString()}</p>
-            ) : null}
-            <p className="text-sm text-gray-500 mt-1">
-              Max referrals: {pkg.max_referrals || 'Unlimited'}
-            </p>
-
-            {profile?.role === 'admin' ? (
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {isActive ? (
-                  <button
-                    onClick={() => handleDeactivatePackage(pkg)}
-                    disabled={isBusy}
-                    className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isBusy ? 'Working…' : 'Deactivate'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleActivatePackage(pkg)}
-                    disabled={isBusy}
-                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isBusy ? 'Working…' : 'Activate'}
-                  </button>
-                )}
-
-                <button
-                  onClick={() => handleDeletePackage(pkg)}
-                  disabled={packageAdminLoading}
-                  className="w-full bg-white text-red-700 py-2 px-4 rounded-md border border-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
-                >
-                  {packageAdminLoading ? 'Working…' : 'Delete'}
-                </button>
-              </div>
-            ) : (
-              <div className="mt-4">
-                {isActive ? (
-                  <button
-                    onClick={() => handleDeactivatePackage(pkg)}
-                    disabled={isBusy}
-                    className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isBusy ? 'Working…' : 'Deactivate'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleActivatePackage(pkg)}
-                    disabled={isBusy}
-                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {isBusy ? 'Working…' : 'Buy Package'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-            );
-          })()
-        ))}
+          );
+        })}
       </div>
 
       {isAddPackageOpen && (
@@ -2489,7 +2200,7 @@ export default function Dashboard() {
               {hasAdminBackup && isImpersonating && !isAdmin && (
                 <button
                   onClick={handleReturnToAdmin}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="mr-3 inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   Return to Admin
                 </button>
@@ -2497,7 +2208,7 @@ export default function Dashboard() {
               {isAdmin && (
                 <button
                   onClick={() => router.push('/admin')}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="mr-3 inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50"
                 >
                   Admin
                 </button>
