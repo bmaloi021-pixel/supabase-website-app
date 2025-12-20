@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -10,19 +9,20 @@ async function getAdminClientAndAssertAdmin(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  const anonClient = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll() {
-        // API routes don't need to set cookies
-      },
-    },
-  })
+  const authHeader = request.headers.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
 
-  const { data: { user: userData } } = await anonClient.auth.getUser()
+  if (!bearerToken) {
+    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+
+  const anonClient = createClient(url, anonKey)
+
+  const { data: { user: userData }, error: userError } = await anonClient.auth.getUser(bearerToken)
   if (!userData) {
+    if (userError) {
+      return { errorResponse: NextResponse.json({ error: userError.message }, { status: 401 }) }
+    }
     return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
 
