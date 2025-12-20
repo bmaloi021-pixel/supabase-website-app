@@ -7,9 +7,7 @@ const nextConfig: NextConfig = {
   webpack(config) {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = config.resolve.alias ?? {};
-    config.resolve.alias["@supabase/supabase-js"] = require.resolve(
-      "@supabase/supabase-js/dist/main/index.js"
-    );
+    config.resolve.mainFields = ['main', 'module'];
     return config;
   },
 };
