@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +14,7 @@ export default function MerchantPortal() {
     Array<{
       id: string
       user_id: string
+      username?: string | null
       amount: number
       created_at: string
       status: string
@@ -92,18 +94,37 @@ export default function MerchantPortal() {
   const fetchPendingRequests = useCallback(async () => {
     try {
       setLoadError(null)
-      const { data, error } = await supabase
-        .from('top_up_requests')
-        .select('id, user_id, amount, created_at, status, status_notes')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
 
-      if (error) throw error
+      if (!token) {
+        throw new Error('No active session')
+      }
 
-      const rows = ((data as any) ?? []) as any[]
-      setPendingRequests(rows)
+      const res = await fetch('/api/merchant/pending-topups', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-      const ids = Array.from(
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload?.error ?? 'Failed to load pending requests')
+      }
+
+      const payload = await res.json().catch(() => null)
+      const rows = (payload?.requests ?? []) as Array<{
+        id: string
+        user_id: string
+        username?: string | null
+        amount: number
+        created_at: string
+        status: string
+        status_notes?: string | null
+      }>
+
+      const paymentMethodIds = Array.from(
         new Set(
           rows
             .map((r) => {
@@ -115,23 +136,21 @@ export default function MerchantPortal() {
         )
       ) as string[]
 
-      if (ids.length === 0) {
-        setPaymentMethodsById({})
-        return
+      const paymentMethodMap: Record<string, any> = {}
+      if (paymentMethodIds.length > 0) {
+        const { data: pmData, error: pmError } = await supabase
+          .from('payment_methods')
+          .select('id, type, label, provider, phone, account_name, account_number_last4')
+          .in('id', paymentMethodIds)
+
+        if (pmError) throw pmError
+
+        for (const pm of (pmData ?? []) as any[]) {
+          paymentMethodMap[pm.id] = pm
+        }
       }
-
-      const { data: pmData, error: pmError } = await supabase
-        .from('payment_methods')
-        .select('id, type, label, provider, phone, account_name, account_number_last4')
-        .in('id', ids)
-
-      if (pmError) throw pmError
-
-      const map: Record<string, any> = {}
-      for (const pm of (pmData ?? []) as any[]) {
-        map[pm.id] = pm
-      }
-      setPaymentMethodsById(map)
+      setPaymentMethodsById(paymentMethodMap)
+      setPendingRequests(rows)
     } catch (error) {
       logSupabaseError('Error fetching pending top-up requests:', error)
       setLoadError((error as any)?.message ?? 'Error fetching pending top-up requests')
@@ -319,22 +338,19 @@ export default function MerchantPortal() {
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
-                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Total Amount</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {stats.loading ? '...' : `₱${stats.totalAmount.toLocaleString()}`}
+                  </p>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Amount</dt>
-                    <dd className="flex items-baseline">
-                      <div className="text-2xl font-semibold text-gray-900">
-                        {stats.loading ? '...' : `₱${stats.totalAmount.toLocaleString()}`}
-                      </div>
-                    </dd>
-                  </dl>
-                </div>
+                <Link
+                  href="/merchant/logs"
+                  className="px-3 py-2 rounded-md text-sm font-medium text-white bg-indigo-600 border border-indigo-600 hover:bg-indigo-700"
+                >
+                  Open audit logs
+                </Link>
               </div>
             </div>
           </div>
@@ -361,7 +377,7 @@ export default function MerchantPortal() {
                   <div key={r.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 rounded-md">
                     <div>
                       <div className="text-sm font-medium text-gray-900">₱{Number(r.amount).toLocaleString()}</div>
-                      <div className="text-xs text-gray-600">User: {r.user_id}</div>
+                      <div className="text-xs text-gray-600">User: {r.username ?? r.user_id}</div>
                       <div className="text-xs text-gray-600">
                         Payment: {(() => {
                           const notes = (r?.status_notes as string | null) || ''

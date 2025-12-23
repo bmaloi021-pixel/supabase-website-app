@@ -17,7 +17,7 @@ export interface Profile {
 export interface PaymentMethod {
   id: string;
   user_id: string;
-  type: 'gcash' | 'bank';
+  type: 'gcash' | 'bank' | 'maya' | 'gotyme';
   label?: string;
   provider?: string;
   account_name?: string;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -53,10 +54,18 @@ export default function Navbar() {
     <nav className="bg-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
             <div className="flex-shrink-0">
-              <Link href={brandHref} className="text-white font-bold">
-                First Steps
+              <Link href={brandHref} className="flex items-center gap-2 text-white font-bold">
+                <Image
+                  src="/xhimer-logo.png"
+                  alt="Xhimer logo"
+                  width={36}
+                  height={36}
+                  priority
+                  className="h-9 w-9"
+                />
+                <span className="text-lg">Xhimer</span>
               </Link>
             </div>
             <div className="hidden md:block">

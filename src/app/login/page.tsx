@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -82,7 +83,17 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-        <div className="text-center">
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <Image
+              src="/xhimer-logo.png"
+              alt="Xhimer logo"
+              width={72}
+              height={72}
+              priority
+              className="h-18 w-18"
+            />
+          </div>
           <h2 className="text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
         </div>
         

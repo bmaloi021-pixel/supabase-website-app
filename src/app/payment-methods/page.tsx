@@ -4,6 +4,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const WALLET_TYPES = ['gcash', 'maya'] as const
+const BANK_TYPES = ['bank', 'gotyme'] as const
+type PaymentType = typeof WALLET_TYPES[number] | typeof BANK_TYPES[number]
+
+const isWalletType = (value: string): value is typeof WALLET_TYPES[number] =>
+  (WALLET_TYPES as readonly string[]).includes(value)
+
+const isBankType = (value: string): value is typeof BANK_TYPES[number] =>
+  (BANK_TYPES as readonly string[]).includes(value)
+
+const getDefaultProvider = (value: PaymentType) => {
+  switch (value) {
+    case 'gcash':
+      return 'GCash'
+    case 'maya':
+      return 'Maya'
+    case 'gotyme':
+      return 'GoTyme Bank'
+    default:
+      return ''
+  }
+}
+
 export default function PaymentMethodsPage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -19,7 +42,7 @@ export default function PaymentMethodsPage() {
   const lastRealtimeRefreshAtRef = useRef(0)
   const realtimeRefreshInFlightRef = useRef(false)
 
-  const [type, setType] = useState<'gcash' | 'bank'>('gcash')
+  const [type, setType] = useState<PaymentType>('gcash')
   const [label, setLabel] = useState('')
   const [provider, setProvider] = useState('')
   const [accountName, setAccountName] = useState('')
@@ -163,23 +186,40 @@ export default function PaymentMethodsPage() {
     setError(null)
     setSaving(true)
     try {
-      if (type === 'gcash') {
-        if (!phone.trim()) throw new Error('Please enter a GCash number')
+      const walletSelected = isWalletType(type)
+      const bankSelected = isBankType(type)
+
+      if (walletSelected) {
+        if (!phone.trim()) {
+          throw new Error(`Please enter a ${type === 'gcash' ? 'GCash' : 'Maya'} number`)
+        }
       }
-      if (type === 'bank') {
-        if (!provider.trim()) throw new Error('Please enter a bank name')
-        if (!accountName.trim()) throw new Error('Please enter an account name')
-        if (!/^[0-9]{4}$/.test(accountLast4.trim())) throw new Error('Bank account last 4 must be exactly 4 digits')
+
+      if (bankSelected) {
+        if (type === 'bank' && !provider.trim()) {
+          throw new Error('Please enter a bank name')
+        }
+        if (!accountName.trim()) {
+          throw new Error('Please enter an account name')
+        }
+        if (!/^[0-9]{4}$/.test(accountLast4.trim())) {
+          throw new Error('Bank account last 4 must be exactly 4 digits')
+        }
       }
 
       const insertPayload: any = {
         user_id: userId,
         type,
         label: label.trim() || null,
-        provider: (type === 'gcash' ? 'GCash' : provider.trim()) || null,
-        account_name: accountName.trim() || null,
-        account_number_last4: accountLast4.trim() || null,
-        phone: phone.trim() || null,
+        provider:
+          walletSelected
+            ? getDefaultProvider(type)
+            : type === 'gotyme'
+              ? getDefaultProvider(type)
+              : provider.trim() || null,
+        account_name: bankSelected ? accountName.trim() || null : null,
+        account_number_last4: bankSelected ? accountLast4.trim() || null : null,
+        phone: walletSelected ? phone.trim() || null : null,
         is_default: false,
         is_public: (role === 'merchant' || role === 'admin') ? !!makePublic : false,
       }
@@ -330,7 +370,9 @@ export default function PaymentMethodsPage() {
                   onChange={(e) => setType(e.target.value as any)}
                 >
                   <option value="gcash">GCash</option>
-                  <option value="bank">Bank</option>
+                  <option value="maya">Maya</option>
+                  <option value="gotyme">GoTyme Bank</option>
+                  <option value="bank">Other Bank</option>
                 </select>
               </div>
 
@@ -344,10 +386,12 @@ export default function PaymentMethodsPage() {
                 />
               </div>
 
-              {type === 'gcash' ? (
+              {isWalletType(type) ? (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">GCash number</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {type === 'gcash' ? 'GCash number' : 'Maya number'}
+                    </label>
                     <input
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                       value={phone}
@@ -371,12 +415,20 @@ export default function PaymentMethodsPage() {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Bank name</label>
-                    <input
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                      placeholder="e.g. BDO, BPI"
-                    />
+                    {type === 'gotyme' ? (
+                      <input
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50"
+                        value={getDefaultProvider(type)}
+                        readOnly
+                      />
+                    ) : (
+                      <input
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        value={provider}
+                        onChange={(e) => setProvider(e.target.value)}
+                        placeholder="e.g. BDO, BPI"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Account name</label>
@@ -478,7 +530,13 @@ export default function PaymentMethodsPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium text-gray-900">
-                          {m.type === 'gcash' ? 'GCash' : 'Bank'}
+                          {m.type === 'gcash'
+                            ? 'GCash'
+                            : m.type === 'maya'
+                              ? 'Maya'
+                              : m.type === 'gotyme'
+                                ? 'GoTyme Bank'
+                                : 'Bank'}
                           {m.label ? ` - ${m.label}` : ''}
                         </div>
                         {m.is_default ? (
@@ -488,11 +546,11 @@ export default function PaymentMethodsPage() {
                         ) : null}
                       </div>
                       <div className="mt-1 text-xs text-gray-600">
-                        {m.type === 'gcash' ? (
+                        {isWalletType(m.type) ? (
                           <span>{m.phone}</span>
                         ) : (
                           <span>
-                            {m.provider} • {m.account_name} • ****{m.account_number_last4}
+                            {m.provider || (m.type === 'gotyme' ? getDefaultProvider('gotyme') : 'Bank')} • {m.account_name} • ****{m.account_number_last4}
                           </span>
                         )}
                       </div>

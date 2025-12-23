@@ -13,6 +13,7 @@ interface Profile {
   referral_code?: string;
   balance?: number;
   updated_at?: string;
+  referred_by_username?: string | null;
 }
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting';
@@ -84,6 +85,30 @@ type PublicPaymentMethod = {
   qr_code_path: string | null;
 };
 
+type TopUpHistoryEntry = {
+  id: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  status_notes?: string | null;
+  created_at: string;
+};
+
+type WithdrawalHistoryEntry = {
+  id: string;
+  amount: number;
+  withdrawnAt: string;
+  packageName: string;
+};
+
+type AccountWithdrawalEntry = {
+  id: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected' | 'processing';
+  created_at: string;
+  processed_at?: string | null;
+  status_notes?: string | null;
+};
+
 const logError = (errorName: string, error: any) => {
   console.error(`[${errorName}]`, error);
 };
@@ -95,12 +120,15 @@ export default function Dashboard() {
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [topUpRequests, setTopUpRequests] = useState<Array<{
-    id: string;
-    amount: number;
-    status: string;
-    created_at: string;
-  }>>([]);
+  const [topUpRequests, setTopUpRequests] = useState<
+    Array<{
+      id: string;
+      amount: number;
+      status: 'pending' | 'approved' | 'rejected';
+      status_notes?: string | null;
+      created_at: string;
+    }>
+  >([]);
   const [userPackageRow, setUserPackageRow] = useState<UserPackageRow | null>(null);
   const [activeUserPackages, setActiveUserPackages] = useState<UserPackageRow[]>([]);
   const [availedUserPackages, setAvailedUserPackages] = useState<UserPackageRow[]>([]);
@@ -142,12 +170,22 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
+  const [pendingScrollTarget, setPendingScrollTarget] = useState<'packages' | 'commissions' | null>(null);
+  const [isTopUpHistoryOpen, setIsTopUpHistoryOpen] = useState(false);
+  const [isWithdrawalHistoryOpen, setIsWithdrawalHistoryOpen] = useState(false);
+  const [isAccountWithdrawalHistoryOpen, setIsAccountWithdrawalHistoryOpen] = useState(false);
+  const [accountWithdrawals, setAccountWithdrawals] = useState<AccountWithdrawalEntry[]>([]);
+  const [accountWithdrawalLoading, setAccountWithdrawalLoading] = useState(false);
+  const [accountWithdrawalError, setAccountWithdrawalError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const buyPackageInFlightRef = useRef(false);
   const lastRealtimeUserRefreshAtRef = useRef(0);
   const lastRealtimeUsersListRefreshAtRef = useRef(0);
   const realtimeUserRefreshInFlightRef = useRef(false);
+  const packagesSectionRef = useRef<HTMLDivElement | null>(null);
+  const commissionsSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -206,13 +244,36 @@ export default function Dashboard() {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+  const withdrawalHistoryEntries = useMemo(
+    () =>
+      availedUserPackages
+        .filter((up) => !!up?.withdrawn_at)
+        .map((up) => ({
+          id: up.id,
+          amount: Number((up as any)?.packages?.price ?? 0),
+          withdrawnAt: up.withdrawn_at as string,
+          packageName: up.packages?.name ?? up.package_id,
+        }))
+        .sort((a, b) => new Date(b.withdrawnAt).getTime() - new Date(a.withdrawnAt).getTime()),
+    [availedUserPackages]
+  );
+  useEffect(() => {
+    if (!pendingScrollTarget) return;
+    const ref = pendingScrollTarget === 'packages' ? packagesSectionRef : commissionsSectionRef;
+    const timeout = window.setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingScrollTarget(null);
+    }, 150);
+    return () => window.clearTimeout(timeout);
+  }, [pendingScrollTarget, activeTab]);
 
-  const formatCurrency = (value: any) => {
+  const formatCurrency = (value: any, digits = 2) => {
     const n = Number(value);
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
-      maximumFractionDigits: 2,
+      maximumFractionDigits: digits,
+      minimumFractionDigits: digits,
     }).format(Number.isFinite(n) ? n : 0);
   };
 
@@ -600,7 +661,7 @@ export default function Dashboard() {
     }
   };
 
-  const fetchTopUpRequests = async (userId?: string) => {
+  const fetchTopUpRequests = async (userId?: string, limit = 20) => {
     if (!userId) {
       logError('FetchTopUpRequestsError', 'No user ID provided');
       return [];
@@ -609,10 +670,10 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from('top_up_requests')
-        .select('*')
+        .select('id, amount, status, status_notes, created_at')
         .eq('user_id', userId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
       if (error) {
         logError('FetchTopUpRequestsError', error);
@@ -753,21 +814,13 @@ export default function Dashboard() {
         refreshPackages()
       ]);
 
-      // Only fetch top-up requests for merchant accounts
-      if (profileData?.role === 'merchant') {
-        try {
-          const topUpRequestsData = await fetchTopUpRequests(userId);
-          if (isMounted !== false) {
-            setTopUpRequests(topUpRequestsData);
-          }
-        } catch (error) {
-          logError('FetchTopUpRequestsError', error);
-          if (isMounted !== false) {
-            setTopUpRequests([]);
-          }
+      try {
+        const topUpRequestsData = await fetchTopUpRequests(userId);
+        if (isMounted !== false) {
+          setTopUpRequests(topUpRequestsData);
         }
-      } else {
-        // Clear top-up requests for non-merchant users
+      } catch (error) {
+        logError('FetchTopUpRequestsError', error);
         if (isMounted !== false) {
           setTopUpRequests([]);
         }
@@ -1214,6 +1267,24 @@ export default function Dashboard() {
     return referrals.length;
   };
 
+  const calculateTotalWithdrawn = () =>
+    availedUserPackages
+      .filter((up) => !!up?.withdrawn_at)
+      .reduce((total, up) => {
+        const amt = Number((up as any)?.packages?.price ?? 0);
+        return total + (Number.isFinite(amt) ? amt : 0);
+      }, 0);
+
+  const calculateDirectCommissions = () =>
+    commissions
+      .filter((commission) => commission.level === 1 && commission.status === 'paid')
+      .reduce((total, commission) => total + commission.amount, 0);
+
+  const calculateIndirectCommissions = () =>
+    commissions
+      .filter((commission) => commission.level && commission.level > 1 && commission.status === 'paid')
+      .reduce((total, commission) => total + commission.amount, 0);
+
   const navItems = [
     { key: 'overview', label: 'Overview' },
     { key: 'referrals', label: 'Referrals' },
@@ -1226,6 +1297,69 @@ export default function Dashboard() {
     if (tab === 'users' && !isAdmin) return;
     setActiveTab(tab);
     setIsMenuOpen(false);
+  };
+  const focusPackagesSection = () => {
+    selectTab('packages');
+    setPendingScrollTarget('packages');
+  };
+  const focusCommissionsSection = () => {
+    selectTab('commissions');
+    setPendingScrollTarget('commissions');
+  };
+  const openTopUpHistory = () => {
+    selectTab('overview');
+    setIsTopUpHistoryOpen(true);
+  };
+  const openWithdrawalHistory = () => {
+    selectTab('overview');
+    setIsWithdrawalHistoryOpen(true);
+  };
+  const openAccountWithdrawalHistory = () => {
+    selectTab('overview');
+    setIsAccountWithdrawalHistoryOpen(true);
+    fetchAccountWithdrawals();
+  };
+  const closeTopUpHistory = () => setIsTopUpHistoryOpen(false);
+  const closeWithdrawalHistory = () => setIsWithdrawalHistoryOpen(false);
+  const closeAccountWithdrawalHistory = () => setIsAccountWithdrawalHistoryOpen(false);
+
+  const fetchAccountWithdrawals = async () => {
+    if (!user?.id) return;
+    setAccountWithdrawalLoading(true);
+    setAccountWithdrawalError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      const response = await fetch('/api/withdrawal-requests', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json();
+      
+      console.log('API Response:', { 
+        status: response.status, 
+        statusText: response.statusText, 
+        data 
+      });
+      
+      if (!response.ok) {
+        console.error('API Error Details:', data);
+        throw new Error(data.error || `Failed to fetch withdrawal requests (${response.status})`);
+      }
+
+      setAccountWithdrawals(data.withdrawal_requests || []);
+    } catch (error) {
+      const errorMsg = (error as any)?.message || 'Failed to load withdrawal history';
+      setAccountWithdrawalError(errorMsg);
+      logError('FetchAccountWithdrawalsError', error);
+    } finally {
+      setAccountWithdrawalLoading(false);
+    }
   };
 
   const updateUserRole = async (userId: string, role: Role, prevRole?: Role) => {
@@ -1400,107 +1534,531 @@ export default function Dashboard() {
     </div>
   );
 
-  const renderTopUpRequests = () => {
-    if (profile?.role !== 'merchant' && !isAdmin) {
-      return null;
-    }
+  const renderTopUpHistoryModal = () => {
+    const statusStyle: Record<TopUpHistoryEntry['status'], string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800',
+    };
 
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Top Up Requests</h2>
-          <span className="px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
-            {topUpRequests.length} Pending
-          </span>
+      <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
+            <h2 className="text-xl font-semibold text-gray-900">Recent Top Ups</h2>
+          </div>
+          <button
+            type="button"
+            onClick={closeTopUpHistory}
+            className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label="Close top-up history modal"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
-        
-        {topUpRequests.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            {topUpRequests.map((request) => (
-              <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+        <div className="px-6 py-3 text-xs text-gray-500">
+          Most recent {Math.min(topUpRequests.length, 20)} submissions • Balances update once reviewed
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
+          {topUpRequests.length > 0 ? (
+            <div className="space-y-3">
+              {topUpRequests.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
+                    <p className="text-xs text-gray-500">{new Date(entry.created_at).toLocaleString()}</p>
+                    {entry.status_notes ? (
+                      <p className="text-xs text-gray-500">
+                        Ref: <span className="font-mono text-gray-700">{entry.status_notes}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[entry.status]}`}>
+                    {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm text-gray-500">
+              You haven’t submitted any top-up requests yet.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderWithdrawalHistoryModal = () => (
+    <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
+          <h2 className="text-xl font-semibold text-gray-900">Package Withdrawals</h2>
+        </div>
+        <button
+          type="button"
+          onClick={closeWithdrawalHistory}
+          className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          aria-label="Close withdrawal history modal"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div className="px-6 py-3 text-xs text-gray-500">Completed package withdrawals and released balances</div>
+      <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
+        {withdrawalHistoryEntries.length > 0 ? (
+          <div className="space-y-3">
+            {withdrawalHistoryEntries.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div>
-                  <p className="font-medium text-gray-900">{formatCurrency(request.amount)}</p>
-                  <p className="text-sm text-gray-500">
-                    {new Date(request.created_at).toLocaleDateString()}
+                  <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
+                  <p className="text-xs text-gray-500">{new Date(entry.withdrawnAt).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">
+                    Package: <span className="font-medium text-gray-700">{entry.packageName ?? '—'}</span>
                   </p>
                 </div>
-                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                  Pending
+                <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-green-100 text-green-800">
+                  Released
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-gray-500">No pending top-up requests.</p>
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm font-semibold text-gray-600">
+            None
+          </div>
         )}
-      </div>
-    );
-  };
-
-  const renderAccountBalanceCard = () => (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Account Balance</h2>
-        <span className="text-2xl font-bold text-indigo-600">
-          {formatCurrency(profile?.balance || 0)}
-        </span>
       </div>
     </div>
   );
 
-  const renderTopUpCard = () => (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Top Up</h2>
-      </div>
+  const renderAccountWithdrawalHistoryModal = () => {
+    const statusStyle: Record<AccountWithdrawalEntry['status'], string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800',
+      processing: 'bg-blue-100 text-blue-800',
+    };
 
+    return (
+      <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
+            <h2 className="text-xl font-semibold text-gray-900">Account Withdrawals</h2>
+          </div>
+          <button
+            type="button"
+            onClick={closeAccountWithdrawalHistory}
+            className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label="Close account withdrawal history modal"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-3 text-xs text-gray-500">
+          Balance withdrawal requests and their processing status
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
+          {accountWithdrawalLoading ? (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm text-gray-500">
+              Loading withdrawal history...
+            </div>
+          ) : accountWithdrawalError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50/60 px-4 py-12 text-center text-sm text-red-600">
+              {accountWithdrawalError}
+            </div>
+          ) : accountWithdrawals.length > 0 ? (
+            <div className="space-y-3">
+              {accountWithdrawals.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
+                    <p className="text-xs text-gray-500">
+                      Requested: {new Date(entry.created_at).toLocaleString()}
+                    </p>
+                    {entry.processed_at ? (
+                      <p className="text-xs text-gray-500">
+                        Processed: {new Date(entry.processed_at).toLocaleString()}
+                      </p>
+                    ) : null}
+                    {entry.status_notes ? (
+                      <p className="text-xs text-gray-500">
+                        Note: <span className="font-mono text-gray-700">{entry.status_notes}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[entry.status]}`}>
+                    {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm font-semibold text-gray-600">
+              No account withdrawal requests yet
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const StatCard = ({
+    label,
+    value,
+    description,
+    icon,
+  }: {
+    label: string;
+    value: string;
+    description: string;
+    icon: React.ReactNode;
+  }) => (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 text-gray-900 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+        <div className="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+
+  const SectionCard = ({
+    title,
+    subtitle,
+    action,
+    children,
+    accent = 'yellow',
+  }: {
+    title: string;
+    subtitle?: string;
+    action?: React.ReactNode;
+    children: React.ReactNode;
+    accent?: 'yellow' | 'green' | 'blue' | 'purple';
+  }) => {
+    const accentClass = {
+      yellow: 'border-yellow-200',
+      green: 'border-emerald-200',
+      blue: 'border-sky-200',
+      purple: 'border-indigo-200',
+    }[accent];
+
+    return (
+      <div className={`rounded-2xl border ${accentClass} bg-white p-6 text-gray-900 shadow-sm`}>
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 pb-4">
+          <div>
+            <h3 className="text-xl font-semibold">{title}</h3>
+            {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}
+          </div>
+          {action}
+        </div>
+        <div className="pt-4">{children}</div>
+      </div>
+    );
+  };
+
+  const renderHeroHeader = () => (
+    <div className="rounded-3xl border border-gray-200 bg-indigo-50/60 p-6 sm:p-8 text-gray-900 shadow-sm">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="h-14 w-14 rounded-full bg-white text-indigo-600 flex items-center justify-center text-2xl font-semibold border border-indigo-100">
+          {profile?.first_name?.[0] ?? 'X'}
+        </div>
+        <div className="flex-1">
+          <p className="text-sm uppercase tracking-[0.25em] text-indigo-400">Welcome</p>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">
+            Hello, <span className="text-indigo-600">@{profile?.username}</span>!
+          </h1>
+          <p className="text-sm text-gray-600">Manage your investments and track your earnings</p>
+        </div>
+        <div className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600">
+          {profile?.role ?? 'User'}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderReferralLink = () => (
+    <SectionCard
+      title="Referral Link"
+      subtitle="Share your link to earn commissions."
+      action={
+        <button
+          type="button"
+          onClick={async () => {
+            if (!profile?.referral_code) return;
+            const link = `${window.location.origin}/signup?ref=${profile.referral_code}`;
+            try {
+              await navigator.clipboard.writeText(link);
+              setHasCopiedReferralLink(true);
+              setTimeout(() => setHasCopiedReferralLink(false), 2000);
+            } catch (e) {
+              logError('CopyReferralLinkError', e);
+            }
+          }}
+          disabled={!profile?.referral_code}
+          className="inline-flex items-center gap-2 rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition disabled:opacity-50"
+        >
+          {hasCopiedReferralLink ? 'Copied!' : 'Copy Link'}
+        </button>
+      }
+    >
+      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+        {profile?.referral_code
+          ? `${window.location.origin}/signup?ref=${profile.referral_code}`
+          : 'Referral link unavailable (missing referral_code)'}
+      </div>
+    </SectionCard>
+  );
+
+  const renderReferredBy = () => {
+    if (!profile?.referred_by_username) return null;
+    return (
+      <SectionCard title="Referred By" accent="purple">
+        <div className="flex items-center gap-3 text-white/80">
+          <div className="h-10 w-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-semibold">
+            {profile?.referred_by_username?.[0]?.toUpperCase() ?? 'R'}
+          </div>
+          <div>
+            <p className="text-sm text-white/60">Username</p>
+            <p className="font-medium">@{profile.referred_by_username}</p>
+          </div>
+        </div>
+      </SectionCard>
+    );
+  };
+
+  const renderOverviewStats = () => (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <StatCard
+        label="Total Withdrawn"
+        value={formatCurrency(calculateTotalWithdrawn())}
+        description="Total amount withdrawn"
+        icon="₱"
+      />
+      <StatCard
+        label="Direct Commissions"
+        value={formatCurrency(calculateDirectCommissions())}
+        description="10% from direct referrals"
+        icon="1%"
+      />
+      <StatCard
+        label="Indirect Commissions"
+        value={formatCurrency(calculateIndirectCommissions())}
+        description="1% from level 2-10"
+        icon="2%"
+      />
+      <StatCard
+        label="Total Package Income"
+        value={formatCurrency(calculateTotalEarnings())}
+        description="Total investments claimed"
+        icon={
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18" />
+          </svg>
+        }
+      />
+    </div>
+  );
+
+  const renderInvestments = () => (
+    <SectionCard
+      title="My Investments"
+      subtitle="Track progress, returns, and claim when ready."
+      accent="blue"
+    >
+      {availedUserPackages.filter((up) => !up?.withdrawn_at).length === 0 ? (
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center text-gray-500">
+          No active investments yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {availedUserPackages
+            .filter((up) => !up?.withdrawn_at)
+            .map((up) => (
+              <div key={up.id} className="rounded-2xl border border-gray-200 bg-white p-5 text-gray-900">
+                <div className="mb-4 flex items-center justify-between text-sm">
+                  <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
+                    {up.packages?.name ?? up.package_id}
+                  </div>
+                  <span className="text-gray-500">
+                    {up.created_at ? new Date(up.created_at).toLocaleDateString() : '-'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Invested</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatCurrency((up as any)?.packages?.price)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Expected</p>
+                    <p className="mt-1 text-lg font-semibold text-green-600">
+                      {formatCurrency((up as any)?.packages?.price * 1.2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Rate</p>
+                    <p className="mt-1 font-semibold text-indigo-600">
+                      {(up as any)?.packages?.commission_rate ?? 20}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Progress</p>
+                    <p className="mt-1 font-semibold text-gray-800">{getMaturityLabel(up) ?? 'Instant'}</p>
+                  </div>
+                </div>
+                {isWithdrawable(up) ? (
+                  <button
+                    type="button"
+                    onClick={() => handleWithdrawPackage(up.id)}
+                    disabled={packageWithdrawLoading}
+                    className="mt-4 w-full rounded-full bg-indigo-600 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    Withdraw
+                  </button>
+                ) : (
+                  <div className="mt-4 rounded-full border border-gray-200 px-4 py-2 text-center text-xs text-gray-500">
+                    0.0% Complete
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+
+  const renderActionsRow = () => (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <SectionCard title="Deposit" accent="green">
+        <div className="grid gap-3">
+          <button
+            onClick={() => setShowTopUpForm(true)}
+            className="rounded-xl bg-indigo-600 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          >
+            Deposit
+          </button>
+          <button
+            type="button"
+            onClick={focusPackagesSection}
+            className="rounded-xl border border-gray-200 bg-white py-3 text-center text-sm font-semibold text-gray-700"
+          >
+            Buy Packages
+          </button>
+          <button
+            type="button"
+            onClick={openTopUpHistory}
+            className="rounded-xl border border-gray-200 bg-gray-50 py-3 text-center text-sm font-semibold text-gray-500"
+          >
+            View History
+          </button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Withdrawal" accent="blue">
+        <div className="grid gap-3">
+          <button className="rounded-xl bg-green-600 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-green-500">
+            Withdraw (₱0.00)
+          </button>
+          <button
+            type="button"
+            onClick={openAccountWithdrawalHistory}
+            className="rounded-xl border border-gray-200 bg-gray-50 py-3 text-center text-sm font-semibold text-gray-500"
+          >
+            View History
+          </button>
+        </div>
+      </SectionCard>
+    </div>
+  );
+
+  const renderTopUpCard = () => (
+    <SectionCard title="Top Up" accent="yellow">
       {!showTopUpForm ? (
         <button
           onClick={() => setShowTopUpForm(true)}
-          className="mt-4 w-full sm:w-auto bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white"
         >
           Top Up Balance
         </button>
       ) : (
-        <form onSubmit={handleTopUp} className="mt-4">
+        <form onSubmit={handleTopUp} className="space-y-4">
           {publicPaymentMethods.length > 0 ? (
-            <div className="mb-4 rounded-md border border-gray-200 p-4">
-              <div className="text-sm font-semibold text-gray-900">Payment method</div>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-sm font-semibold text-gray-700">Payment method</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {publicPaymentMethods.map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => setSelectedPublicPaymentMethodId(m.id)}
-                    className={`text-left p-3 rounded-md border ${
+                    className={`rounded-2xl border p-4 text-left transition ${
                       selectedPublicPaymentMethodId === m.id
                         ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                        : 'border-gray-200 bg-white hover:border-indigo-100'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {(m.provider || (m.type === 'gcash' ? 'GCash' : m.type)) + (m.label ? ` - ${m.label}` : '')}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {(m.provider || (m.type === 'gcash' ? 'GCash' : m.type)) + (m.label ? ` - ${m.label}` : '')}
+                          </p>
                         </div>
-                        <div className="mt-1 text-xs text-gray-600">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+                          <p className="font-semibold text-gray-700">Account Details</p>
                           {m.type === 'gcash' ? (
-                            <span>{m.phone}</span>
+                            <>
+                              <p>Account Name: {m.account_name ?? '—'}</p>
+                              <p>Number: {m.phone ?? '—'}</p>
+                            </>
                           ) : (
-                            <span>
-                              {m.account_name}
-                              {m.account_number_last4 ? ` • ****${m.account_number_last4}` : ''}
-                            </span>
+                            <>
+                              <p>Bank: {m.provider ?? m.type}</p>
+                              <p>Account Name: {m.account_name ?? '—'}</p>
+                              <p>Account #: {m.account_number_last4 ? `****${m.account_number_last4}` : '—'}</p>
+                            </>
                           )}
                         </div>
                       </div>
-
                       {publicPaymentQrUrls[m.id] ? (
-                        <img
-                          src={publicPaymentQrUrls[m.id]}
-                          alt="QR"
-                          className="h-16 w-16 rounded-md border border-gray-200 object-cover"
-                        />
+                        <div className="w-full sm:w-52">
+                          <div className="aspect-square w-full rounded-2xl border border-gray-200 bg-white flex items-center justify-center p-3">
+                            <img
+                              src={publicPaymentQrUrls[m.id]}
+                              alt="Payment preview"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   </button>
@@ -1508,23 +2066,23 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="mb-4 text-sm text-gray-600">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-gray-500">
               No payment methods available yet.
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <label htmlFor="amount" className="sr-only">Amount</label>
-              <div className="relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">₱</span>
-                </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <label htmlFor="amount" className="text-sm text-gray-600">
+              Amount
+            </label>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">₱</span>
                 <input
                   type="number"
-                  name="amount"
                   id="amount"
-                  className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                  name="amount"
+                  className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-8 pr-3 text-gray-900 outline-none focus:border-indigo-500"
                   placeholder="0.00"
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
@@ -1533,197 +2091,52 @@ export default function Dashboard() {
                   required
                 />
               </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={isProcessingPayment}
+                  className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {isProcessingPayment ? 'Processing…' : 'Submit'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTopUpForm(false);
+                    setPaymentError(null);
+                  }}
+                  className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={isProcessingPayment}
-                className="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {isProcessingPayment ? 'Processing...' : 'Submit Top Up'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTopUpForm(false);
-                  setPaymentError(null);
-                }}
-                className="bg-white text-gray-700 py-2 px-4 rounded-md border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                Cancel
-              </button>
-            </div>
+            {paymentError ? <p className="mt-2 text-sm text-red-600">{paymentError}</p> : null}
           </div>
-          {paymentError && (
-            <p className="mt-2 text-sm text-red-600">{paymentError}</p>
-          )}
         </form>
       )}
-    </div>
+    </SectionCard>
   );
 
-  const renderReferralLink = () => (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <h3 className="text-lg font-semibold text-gray-900">Your Referral Link</h3>
-      <p className="text-sm text-gray-500 mt-1">Share this link to refer new users and earn commissions.</p>
-      <div className="mt-3 flex flex-col sm:flex-row gap-2">
-        <input
-          readOnly
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
-          value={
-            profile?.referral_code
-              ? `${window.location.origin}/signup?ref=${profile.referral_code}`
-              : 'Referral link unavailable (missing referral_code)'
-          }
-        />
-        <button
-          type="button"
-          onClick={async () => {
-            if (!profile?.referral_code) return;
-            const link = `${window.location.origin}/signup?ref=${profile.referral_code}`;
-            try {
-              await navigator.clipboard.writeText(link);
-            } catch (e) {
-              logError('CopyReferralLinkError', e);
-            }
-          }}
-          disabled={!profile?.referral_code}
-          className="inline-flex justify-center items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50"
-        >
-          Copy
-        </button>
+  const renderAccountBalanceCard = () => (
+    <SectionCard title="Account Balance" accent="green">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-white/60">Available balance</p>
+          <p className="text-3xl font-bold text-white">{formatCurrency(profile?.balance || 0)}</p>
+        </div>
+        <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70">
+          Last updated {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '—'}
+        </div>
       </div>
-    </div>
+    </SectionCard>
   );
 
   const renderOverview = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Total Earnings</h3>
-          <p className="text-3xl font-bold text-green-600 mt-2">
-            {formatCurrency(calculateTotalEarnings())}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">Lifetime earnings</p>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Total Referrals</h3>
-          <p className="text-3xl font-bold text-blue-600 mt-2">
-            {calculateTotalReferrals()}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">Active referrals</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Availed Packages</h3>
-          <p className="text-sm text-gray-500 mt-1">All packages you have purchased (including stacked buys).</p>
-        </div>
-        <div className="p-6">
-          {availedUserPackages.filter((up) => !up?.withdrawn_at).length === 0 ? (
-            <div className="py-8 text-center text-sm text-gray-500">No packages purchased yet.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {availedUserPackages.filter((up) => !up?.withdrawn_at).map((up) => {
-                const statusClass =
-                  up.status === 'active'
-                    ? 'bg-green-50 text-green-700 ring-green-600/20'
-                    : up.status === 'cancelled'
-                    ? 'bg-gray-50 text-gray-700 ring-gray-600/20'
-                    : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20';
-
-                const canWithdraw = isWithdrawable(up);
-                const isThisWithdrawing = packageWithdrawLoading && withdrawingUserPackageId === up.id;
-                const cardWithdrawError = withdrawErrorByUserPackageId[up.id];
-
-                return (
-                  <div
-                    key={up.id}
-                    className="relative overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br from-white via-white to-indigo-50 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-indigo-100" />
-                    <div className="absolute top-4 right-4">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4"
-                        >
-                          <path d="M12 2l2.9 6.6 7.1.6-5.4 4.6 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.2l7.1-.6L12 2z" />
-                        </svg>
-                        Availed
-                      </span>
-                    </div>
-
-                    <div className="relative p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-500">Package</div>
-                          <div className="mt-1 truncate text-lg font-semibold text-gray-900">
-                            {up.packages?.name ?? up.package_id}
-                          </div>
-                          <div className="mt-2 text-2xl font-bold text-indigo-700">
-                            {formatCurrency((up as any)?.packages?.price)}
-                          </div>
-                        </div>
-                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ring-1 ring-inset ${statusClass}`}> 
-                          {up.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-500">Bought</span>
-                          <span className="text-gray-900">
-                            {up.created_at ? new Date(up.created_at).toLocaleString() : '-'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-500">Matures</span>
-                          <span className="text-gray-900">
-                            {getMaturityLabel(up) ?? '-'}
-                          </span>
-                        </div>
-                        {getMaturityProgress(up) != null ? (
-                          <div>
-                            {renderMaturityProgressBar(up)}
-                          </div>
-                        ) : null}
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-500">Withdrawn</span>
-                          <span className="text-gray-900">
-                            {up.withdrawn_at ? new Date(up.withdrawn_at).toLocaleString() : '-'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {canWithdraw ? (
-                        <div className="mt-4">
-                          {cardWithdrawError ? (
-                            <div className="mb-2 text-sm text-red-600">{cardWithdrawError}</div>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() => handleWithdrawPackage(up.id)}
-                            disabled={packageWithdrawLoading}
-                            className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                          >
-                            {isThisWithdrawing ? 'Withdrawing...' : 'Withdraw'}
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      {renderOverviewStats()}
+      {renderInvestments()}
+      {renderActionsRow()}
     </div>
   );
 
@@ -2233,7 +2646,7 @@ export default function Dashboard() {
                   </svg>
                 </button>
               <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">First Steps Dashboard</h1>
+                <h1 className="text-xl font-bold text-gray-900">Xhimer Dashboard</h1>
               </div>
             </div>
             <div className="flex items-center">
@@ -2321,24 +2734,41 @@ export default function Dashboard() {
                 {renderReferralLink()}
                 {renderAccountBalanceCard()}
                 {renderTopUpCard()}
-                {(profile?.role === 'merchant' || isAdmin) && renderTopUpRequests()}
                 {renderOverview()}
               </>
             )}
             {activeTab === 'referrals' && renderReferrals()}
-            {activeTab === 'commissions' && renderCommissions()}
+            {activeTab === 'commissions' && <div ref={commissionsSectionRef}>{renderCommissions()}</div>}
             {activeTab === 'packages' && (
-              <>
+              <div ref={packagesSectionRef}>
                 {userPackageRow && renderAccountBalanceCard()}
                 {userPackageRow && renderTopUpCard()}
                 {renderPackages()}
-              </>
+              </div>
             )}
             {activeTab === 'users' && isAdmin && renderUsers()}
             {activeTab === 'admin' && isAdmin && renderAdminPanel()}
           </div>
         </div>
       </main>
+      {isTopUpHistoryOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeTopUpHistory} aria-hidden="true" />
+          <div className="relative z-10">{renderTopUpHistoryModal()}</div>
+        </div>
+      ) : null}
+      {isWithdrawalHistoryOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeWithdrawalHistory} aria-hidden="true" />
+          <div className="relative z-10">{renderWithdrawalHistoryModal()}</div>
+        </div>
+      ) : null}
+      {isAccountWithdrawalHistoryOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAccountWithdrawalHistory} aria-hidden="true" />
+          <div className="relative z-10">{renderAccountWithdrawalHistoryModal()}</div>
+        </div>
+      ) : null}
     </div>
   );
 }

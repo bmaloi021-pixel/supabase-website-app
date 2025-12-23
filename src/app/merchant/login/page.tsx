@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -86,7 +87,17 @@ function MerchantLoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-        <div className="text-center">
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <Image
+              src="/xhimer-logo.png"
+              alt="Xhimer logo"
+              width={72}
+              height={72}
+              priority
+              className="h-18 w-18"
+            />
+          </div>
           <h2 className="text-3xl font-extrabold text-gray-900">Merchant sign in</h2>
           <p className="mt-2 text-sm text-gray-600">Only merchant and admin accounts can access this portal.</p>
         </div>

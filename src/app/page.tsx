@@ -46,7 +46,7 @@ export default function Home() {
         <div className="w-full max-w-4xl space-y-8">
           <div className="space-y-6">
             <h1 className="text-5xl font-bold text-gray-900 sm:text-6xl">
-              First Steps Referral Network
+              Xhimer Referral Network
             </h1>
             <p className="text-xl text-gray-600">
               Earn commissions by referring others to our exclusive packages.
