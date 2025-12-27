@@ -175,6 +175,8 @@ export default function Dashboard() {
   const [isTopUpHistoryOpen, setIsTopUpHistoryOpen] = useState(false);
   const [isWithdrawalHistoryOpen, setIsWithdrawalHistoryOpen] = useState(false);
   const [isAccountWithdrawalHistoryOpen, setIsAccountWithdrawalHistoryOpen] = useState(false);
+  const [selectedOverviewDate, setSelectedOverviewDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [activeAdminNav, setActiveAdminNav] = useState('dashboard');
   const [accountWithdrawals, setAccountWithdrawals] = useState<AccountWithdrawalEntry[]>([]);
   const [accountWithdrawalLoading, setAccountWithdrawalLoading] = useState(false);
   const [accountWithdrawalError, setAccountWithdrawalError] = useState<string | null>(null);
@@ -272,9 +274,14 @@ export default function Dashboard() {
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
-      maximumFractionDigits: digits,
       minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
     }).format(Number.isFinite(n) ? n : 0);
+  };
+
+  const formatNumber = (value: any) => {
+    const n = Number(value);
+    return new Intl.NumberFormat('en-PH').format(Number.isFinite(n) ? n : 0);
   };
 
   const getMaturityDate = (up?: Partial<UserPackageRow> | null) => {
@@ -1282,8 +1289,22 @@ export default function Dashboard() {
 
   const calculateIndirectCommissions = () =>
     commissions
-      .filter((commission) => commission.level && commission.level > 1 && commission.status === 'paid')
+      .filter((commission) => commission.level > 1 && commission.status === 'paid')
       .reduce((total, commission) => total + commission.amount, 0);
+
+  const calculateTotalPackageValue = () =>
+    activeUserPackages.reduce((total, pkg) => {
+      const amount = Number((pkg as any)?.packages?.price ?? 0);
+      return total + (Number.isFinite(amount) ? amount : 0);
+    }, 0);
+
+  const calculateActivePackages = () =>
+    activeUserPackages.filter((pkg) => !pkg.withdrawn_at).length;
+
+  const calculateApprovedWithdrawalsCount = () =>
+    availedUserPackages.filter((pkg) => !!pkg.withdrawn_at).length;
+
+  const calculateSalesDifference = () => calculateTotalEarnings() - calculateTotalWithdrawn();
 
   const navItems = [
     { key: 'overview', label: 'Overview' },
@@ -1293,9 +1314,129 @@ export default function Dashboard() {
     ...(isAdmin ? ([{ key: 'users', label: 'Users' }] as const) : []),
   ] as const;
 
+  const adminNavItems: {
+    key: string;
+    label: string;
+    tab?: string;
+    href?: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      tab: 'overview',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3 9l9-6 9 6" />
+          <path d="M9 22V12h6v10" />
+        </svg>
+      ),
+    },
+    {
+      key: 'user-management',
+      label: 'User Management',
+      tab: 'users',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="9" cy="7" r="3" />
+          <circle cx="17" cy="7" r="3" />
+          <path d="M2 21a7 7 0 0114 0" />
+          <path d="M12 21h10" />
+        </svg>
+      ),
+    },
+    {
+      key: 'merchants',
+      label: 'Merchants',
+      href: '/admin/merchants',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M8 14h.01M12 14h.01M16 14h.01" />
+        </svg>
+      ),
+    },
+    {
+      key: 'accounting',
+      label: 'Accounting',
+      href: '/admin/accounting',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      ),
+    },
+    {
+      key: 'payment-methods',
+      label: 'Payment Methods',
+      href: '/admin/payment-methods',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" />
+          <path d="M6 15h2v2H6z" />
+        </svg>
+      ),
+    },
+    {
+      key: 'cashflow',
+      label: 'Cashflow Center',
+      href: '/admin/cashflow',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 19h16" />
+          <path d="M7 15l3-8 4 12 3-8" />
+          <path d="M3 4h18" />
+        </svg>
+      ),
+    },
+    {
+      key: 'commissions',
+      label: 'Commissions',
+      tab: 'commissions',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="8" cy="8" r="3" />
+          <circle cx="16" cy="8" r="3" />
+          <path d="M2 21a6 6 0 1112 0" />
+        </svg>
+      ),
+    },
+    {
+      key: 'investment-plans',
+      label: 'Investment Plans',
+      tab: 'packages',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3l9 4.5-9 4.5-9-4.5z" />
+          <path d="M3 7.5V16l9 4.5 9-4.5V7.5" />
+        </svg>
+      ),
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      href: '/admin/settings',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-3 0 1.65 1.65 0 00-.33 1.82l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.82-.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 9a1.65 1.65 0 00.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.82.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 15z" />
+        </svg>
+      ),
+    },
+  ];
+
   const selectTab = (tab: string) => {
     if (tab === 'users' && !isAdmin) return;
     setActiveTab(tab);
+    if (isAdmin) {
+      const matchingAdminNav = adminNavItems.find((item) => item.tab === tab);
+      if (matchingAdminNav) {
+        setActiveAdminNav(matchingAdminNav.key);
+      }
+    }
     setIsMenuOpen(false);
   };
   const focusPackagesSection = () => {
@@ -1322,6 +1463,16 @@ export default function Dashboard() {
   const closeTopUpHistory = () => setIsTopUpHistoryOpen(false);
   const closeWithdrawalHistory = () => setIsWithdrawalHistoryOpen(false);
   const closeAccountWithdrawalHistory = () => setIsAccountWithdrawalHistoryOpen(false);
+
+  const handleAdminNavClick = (item: (typeof adminNavItems)[number]) => {
+    setActiveAdminNav(item.key);
+    if (item.tab) {
+      selectTab(item.tab);
+    } else if (item.href) {
+      router.push(item.href);
+    }
+    setIsMenuOpen(false);
+  };
 
   const fetchAccountWithdrawals = async () => {
     if (!user?.id) return;
@@ -1724,30 +1875,103 @@ export default function Dashboard() {
     );
   };
 
+  type StatBadgeTone = 'teal' | 'violet' | 'blue' | 'gold' | 'slate';
+  type StatBadge = { label: string; tone?: StatBadgeTone };
+
   const StatCard = ({
     label,
     value,
     description,
     icon,
+    badge,
   }: {
     label: string;
     value: string;
     description: string;
     icon: React.ReactNode;
-  }) => (
-    <div className="rounded-xl border border-[#1a2f3f] bg-[#0f1f2e] p-5 text-white shadow-md">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-[#7eb3b0]">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-          <p className="mt-1 text-xs text-[#6a8f99]">{description}</p>
+    badge?: StatBadge;
+  }) => {
+    const themeMap: Record<
+      string,
+      { bg: string; border: string; glow: string; iconBg: string; iconColor: string }
+    > = {
+      default: {
+        bg: 'from-[#0c1a2b] via-[#111f35] to-[#0b1624]',
+        border: 'border-white/5',
+        glow: 'shadow-[#13263d]/70',
+        iconBg: 'bg-white/10',
+        iconColor: 'text-white',
+      },
+      teal: {
+        bg: 'from-[#0b2127] via-[#0d2f3a] to-[#0c1f2b]',
+        border: 'border-[#0c2f3c]',
+        glow: 'shadow-[#0d3e48]/50',
+        iconBg: 'bg-[#0e3a44]',
+        iconColor: 'text-[#4ee1c4]',
+      },
+      purple: {
+        bg: 'from-[#1a1640] via-[#1d1a4d] to-[#141034]',
+        border: 'border-[#2a2163]',
+        glow: 'shadow-[#3b2c7e]/40',
+        iconBg: 'bg-[#2a2a63]',
+        iconColor: 'text-[#bca7ff]',
+      },
+      blue: {
+        bg: 'from-[#0d203b] via-[#0f2a4d] to-[#081a2d]',
+        border: 'border-[#103162]',
+        glow: 'shadow-[#153f7a]/40',
+        iconBg: 'bg-[#10345e]',
+        iconColor: 'text-[#6fb7ff]',
+      },
+    };
+
+    const themeKey =
+      badge?.tone === 'violet'
+        ? 'purple'
+        : badge?.tone === 'blue'
+          ? 'blue'
+          : badge?.tone === 'teal'
+            ? 'teal'
+            : 'default';
+    const cardTheme = themeMap[themeKey] ?? themeMap.default;
+    const badgeToneClasses: Record<StatBadgeTone, string> = {
+      teal: 'bg-[#1b3d3b] text-[#5af0d3]',
+      violet: 'bg-[#2c1d5c] text-[#c3a6ff]',
+      blue: 'bg-[#132f5f] text-[#7bb8ff]',
+      gold: 'bg-[#4a3512] text-[#ffd37e]',
+      slate: 'bg-white/5 text-white/80',
+    };
+
+    return (
+      <div
+        className={`rounded-2xl border ${cardTheme.border} bg-gradient-to-br ${cardTheme.bg} p-5 text-white shadow-xl ${cardTheme.glow}`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/50">{label}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+            <p className="mt-2 text-sm text-white/70">{description}</p>
+          </div>
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl ${cardTheme.iconBg} ${cardTheme.iconColor} shadow-inner`}
+          >
+            {icon}
+          </div>
         </div>
-        <div className="h-11 w-11 rounded-xl bg-[#132f40] text-[#16a7a1] flex items-center justify-center shadow-inner">
-          {icon}
-        </div>
+        {badge?.label ? (
+          <div className="mt-4">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                badgeToneClasses[badge.tone ?? 'slate']
+              }`}
+            >
+              {badge.label}
+            </span>
+          </div>
+        ) : null}
       </div>
-    </div>
-  );
+    );
+  };
 
   const SectionCard = ({
     title,
@@ -1785,23 +2009,65 @@ export default function Dashboard() {
   };
 
   const renderHeroHeader = () => (
-    <div className="relative overflow-hidden rounded-3xl border border-[#1c3f4c] bg-gradient-to-br from-[#102335] via-[#133247] to-[#0c1f2b] p-6 sm:p-8 text-white shadow-lg shadow-black/40">
-      <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-[#16a7a1]/15 blur-2xl" />
-      <div className="absolute -bottom-24 -left-20 h-60 w-60 rounded-full bg-[#d4b673]/15 blur-3xl" />
-      <div className="relative flex flex-wrap items-center gap-4">
-        <div className="h-14 w-14 rounded-2xl border border-[#1c3f4c] bg-[#091522] text-[#16a7a1] flex items-center justify-center text-2xl font-semibold shadow-inner shadow-black/40">
-          {profile?.first_name?.[0]?.toUpperCase() ?? 'X'}
+    <div className="relative overflow-hidden rounded-[32px] border border-white/5 bg-gradient-to-br from-[#11193a] via-[#131f52] to-[#0a1333] p-8 text-white shadow-[0_25px_80px_rgba(7,12,32,0.8)]">
+      <div className="absolute inset-0">
+        <div className="absolute -top-20 -left-16 h-64 w-64 rounded-full bg-[#1b5fff]/20 blur-[90px]" />
+        <div className="absolute top-10 right-0 h-52 w-52 rounded-full bg-[#20e0c6]/20 blur-[120px]" />
+      </div>
+      <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-3">
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+            Welcome back
+          </p>
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Admin Dashboard</h1>
+            <p className="mt-2 text-base text-white/70">
+              View system metrics, user performance, and reinvestment trends in one glance.
+            </p>
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-xs uppercase tracking-[0.4em] text-[#7eb3b0]/70">Welcome back</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold">
-            Hello, <span className="text-[#f3cc84]">@{profile?.username ?? 'user'}</span>!
-          </h1>
-          <p className="text-sm text-[#9fc3c1]">Manage your investments, track earnings, and grow your portfolio.</p>
+        <div className="flex flex-col gap-3 rounded-2xl bg-white/10 p-5 backdrop-blur">
+          <p className="text-xs uppercase tracking-[0.4em] text-white/60">Current user</p>
+          <p className="text-xl font-semibold">@{profile?.username ?? 'user'}</p>
+          <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-sm font-semibold text-white">
+            <span className="h-2 w-2 rounded-full bg-emerald-300" />
+            {profile?.role ?? 'User'}
+          </div>
         </div>
-        <div className="rounded-full border border-[#1c3f4c] bg-[#112333] px-4 py-2 text-sm font-semibold text-[#7eb3b0]">
-          {profile?.role ?? 'User'}
+      </div>
+    </div>
+  );
+
+  const renderOverviewFilter = () => (
+    <div className="grid gap-4 rounded-3xl border border-white/5 bg-[#0b1633] p-6 shadow-[0_25px_60px_rgba(4,9,24,0.65)] md:grid-cols-[auto,1fr,auto] md:items-center">
+      <div className="flex items-center gap-3 text-white/80">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#19264e] text-[#7ab2ff]">
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="3" y="4" width="18" height="17" rx="4" />
+            <path d="M8 2v4M16 2v4M3 10h18" />
+          </svg>
         </div>
+        <div>
+          <p className="text-sm font-semibold text-white">Filter by Date</p>
+          <p className="text-xs text-white/60">Review daily payouts and receipts</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <input
+          type="date"
+          value={selectedOverviewDate}
+          onChange={(e) => setSelectedOverviewDate(e.target.value)}
+          className="flex-1 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-[#20e0c6]"
+        />
+      </div>
+      <div className="flex gap-3 md:justify-end">
+        <button
+          type="button"
+          onClick={() => setSelectedOverviewDate(new Date().toISOString().slice(0, 10))}
+          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/5"
+        >
+          Clear
+        </button>
       </div>
     </div>
   );
@@ -1857,37 +2123,229 @@ export default function Dashboard() {
   };
 
   const renderOverviewStats = () => (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-      <StatCard
-        label="Total Withdrawn"
-        value={formatCurrency(calculateTotalWithdrawn())}
-        description="Total amount withdrawn"
-        icon="₱"
-      />
-      <StatCard
-        label="Direct Commissions"
-        value={formatCurrency(calculateDirectCommissions())}
-        description="10% from direct referrals"
-        icon="1%"
-      />
-      <StatCard
-        label="Indirect Commissions"
-        value={formatCurrency(calculateIndirectCommissions())}
-        description="1% from level 2-10"
-        icon="2%"
-      />
-      <StatCard
-        label="Total Package Income"
-        value={formatCurrency(calculateTotalEarnings())}
-        description="Total investments claimed"
-        icon={
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M3 9h18" />
-          </svg>
-        }
-      />
-    </div>
+    (() => {
+      const approvedReceipts = topUpRequests.filter((t) => t.status === 'approved').length;
+      const activeReferralUsers = referrals.filter((r) => r.status === 'active').length;
+      const approvedWithdrawals = calculateApprovedWithdrawalsCount();
+      const reinvestedUsers = availedUserPackages.filter(
+        (up) => !!up.withdrawn_at && up.status === 'active'
+      ).length;
+      const reinvestedAmount = availedUserPackages
+        .filter((up) => !!up.withdrawn_at)
+        .reduce((total, up) => {
+          const amt = Number((up as any)?.packages?.price ?? 0);
+          return total + (Number.isFinite(amt) ? amt : 0);
+        }, 0);
+      const totalRegistered = referrals.length + 1;
+      const totalActivatedPackages = availedUserPackages.length;
+
+      const icon = (paths: React.ReactNode) => (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
+          {paths}
+        </svg>
+      );
+
+      const metrics = [
+        {
+          key: 'totalPackage',
+          label: 'Total Package',
+          value: formatCurrency(calculateTotalPackageValue()),
+          description: 'Total package value including expected profit',
+          badge: { label: 'Active', tone: 'teal' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M5 8h14l-1 11H6z" />
+              <path d="M9 8V6a3 3 0 116 0v2" />
+            </>
+          ),
+        },
+        {
+          key: 'totalEarnings',
+          label: 'Total Earnings',
+          value: formatCurrency(calculateTotalEarnings()),
+          description: 'Total approved investment receipts',
+          badge: { label: 'Revenue', tone: 'blue' } as StatBadge,
+          icon: icon(
+            <>
+              <rect x="4" y="5" width="16" height="14" rx="3" />
+              <path d="M8 10h8M8 14h5" />
+            </>
+          ),
+        },
+        {
+          key: 'totalWithdraw',
+          label: 'Total Withdraw',
+          value: formatCurrency(calculateTotalWithdrawn()),
+          description: 'Total approved withdrawal amount',
+          badge: { label: 'Payouts', tone: 'violet' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M7 9l5 5 5-5" />
+              <path d="M12 4v10" />
+              <path d="M5 19h14" />
+            </>
+          ),
+        },
+        {
+          key: 'directReferral',
+          label: 'Direct Referral',
+          value: formatCurrency(calculateDirectCommissions()),
+          description: 'First level referral commissions',
+          badge: { label: 'Level 1', tone: 'gold' } as StatBadge,
+          icon: icon(
+            <>
+              <circle cx="12" cy="7" r="2.5" />
+              <path d="M5 20a7 7 0 0114 0" />
+            </>
+          ),
+        },
+        {
+          key: 'indirectReferral',
+          label: 'Indirect Referral',
+          value: formatCurrency(calculateIndirectCommissions()),
+          description: 'Multi-level referral commissions',
+          badge: { label: 'Level 2-10', tone: 'violet' } as StatBadge,
+          icon: icon(
+            <>
+              <circle cx="6" cy="8" r="2" />
+              <circle cx="18" cy="8" r="2" />
+              <circle cx="12" cy="15" r="2" />
+              <path d="M8 9l2.5 4M16 9l-2.5 4" />
+            </>
+          ),
+        },
+        {
+          key: 'activePackage',
+          label: 'Active Package',
+          value: formatNumber(calculateActivePackages()),
+          description: 'Number of activated packages',
+          badge: { label: 'Count', tone: 'teal' } as StatBadge,
+          icon: icon(
+            <>
+              <rect x="5" y="5" width="5" height="5" rx="1.5" />
+              <rect x="14" y="5" width="5" height="5" rx="1.5" />
+              <rect x="9.5" y="14" width="5" height="5" rx="1.5" />
+            </>
+          ),
+        },
+        {
+          key: 'activeUser',
+          label: 'Active User',
+          value: formatNumber(Math.max(1, activeReferralUsers)),
+          description: 'Users with approved investments',
+          badge: { label: 'New', tone: 'blue' } as StatBadge,
+          icon: icon(
+            <>
+              <circle cx="12" cy="8" r="3" />
+              <path d="M6 20a6 6 0 0112 0" />
+            </>
+          ),
+        },
+        {
+          key: 'approvedWithdraw',
+          label: 'Approved Withdraw',
+          value: formatNumber(approvedWithdrawals),
+          description: 'Number of approved withdrawals',
+          badge: { label: 'Count', tone: 'slate' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M12 5v14" />
+              <path d="M8 13l4 4 4-4" />
+            </>
+          ),
+        },
+        {
+          key: 'approvedReceipts',
+          label: 'Approved Receipts',
+          value: formatNumber(approvedReceipts),
+          description: 'Number of approved investment receipts',
+          badge: { label: 'Count', tone: 'teal' } as StatBadge,
+          icon: icon(
+            <>
+              <rect x="6" y="4" width="12" height="16" rx="2" />
+              <path d="M9 8h6M9 12h4" />
+            </>
+          ),
+        },
+        {
+          key: 'salesDifference',
+          label: 'Sales Difference',
+          value: formatCurrency(calculateSalesDifference()),
+          description: 'Difference between earnings and withdrawals',
+          badge: { label: 'Net', tone: 'gold' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M5 12h14" />
+              <path d="M12 5l4 4-4 4" />
+              <path d="M12 19l-4-4 4-4" />
+            </>
+          ),
+        },
+        {
+          key: 'userReinvested',
+          label: 'User Reinvested',
+          value: formatNumber(reinvestedUsers),
+          description: 'Users who reinvested',
+          badge: { label: 'Count', tone: 'blue' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M12 5v4" />
+              <path d="M16 9l-4 4-4-4" />
+              <path d="M6 19h12" />
+            </>
+          ),
+        },
+        {
+          key: 'amountReinvested',
+          label: 'Amount Reinvested',
+          value: formatCurrency(reinvestedAmount),
+          description: 'Total amount reinvested',
+          badge: { label: 'Total', tone: 'teal' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M6 15a6 6 0 0112 0" />
+              <path d="M12 9V4" />
+              <path d="M9 6l3-2 3 2" />
+            </>
+          ),
+        },
+        {
+          key: 'totalRegistered',
+          label: 'Total Registered',
+          value: formatNumber(totalRegistered),
+          description: 'Total registered users',
+          badge: { label: 'All Time', tone: 'slate' } as StatBadge,
+          icon: icon(
+            <>
+              <circle cx="7" cy="9" r="2" />
+              <circle cx="17" cy="9" r="2" />
+              <path d="M4 19a4 4 0 018 0M12 19a4 4 0 018 0" />
+            </>
+          ),
+        },
+        {
+          key: 'totalActivated',
+          label: 'Total Activated',
+          value: formatNumber(totalActivatedPackages),
+          description: 'Total activated packages',
+          badge: { label: 'All Time', tone: 'slate' } as StatBadge,
+          icon: icon(
+            <>
+              <path d="M12 5v14" />
+              <path d="M8 9l4-4 4 4" />
+            </>
+          ),
+        },
+      ];
+
+      return (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metrics.map(({ key, ...card }) => (
+            <StatCard key={key} {...card} />
+          ))}
+        </div>
+      );
+    })()
   );
 
   const renderInvestments = () => (
@@ -2133,13 +2591,25 @@ export default function Dashboard() {
     </SectionCard>
   );
 
-  const renderOverview = () => (
+  const renderAdminOverview = () => (
     <div className="space-y-6">
+      {renderHeroHeader()}
+      {renderOverviewFilter()}
       {renderOverviewStats()}
+    </div>
+  );
+
+  const renderUserOverview = () => (
+    <div className="space-y-6">
+      {renderReferralLink()}
+      {renderAccountBalanceCard()}
+      {renderTopUpCard()}
       {renderInvestments()}
       {renderActionsRow()}
     </div>
   );
+
+  const renderOverview = () => (isAdmin ? renderAdminOverview() : renderUserOverview());
 
   const renderUsers = () => (
     <div className="bg-[#0f1f2e] rounded-lg shadow-lg border border-[#1a2f3f] overflow-hidden">
@@ -2714,29 +3184,73 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-1">
-            {navItems.map((item) => {
-              const icons: Record<string, React.ReactNode> = {
-                overview: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
-                referrals: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-                commissions: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-                packages: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
-                users: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
-              };
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => selectTab(item.key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === item.key
-                      ? 'bg-[#1a2f3f] text-[#16a7a1]'
-                      : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
-                  }`}
-                >
-                  {icons[item.key] ?? null}
-                  {item.label}
-                </button>
-              );
-            })}
+            {isAdmin
+              ? adminNavItems.map((item) => {
+                  const isActive = activeAdminNav === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => handleAdminNavClick(item)}
+                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
+                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+                          isActive ? 'bg-white/15' : 'bg-white/5'
+                        }`}
+                      >
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </button>
+                  );
+                })
+              : navItems.map((item) => {
+                  const icons: Record<string, React.ReactNode> = {
+                    overview: (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                    ),
+                    referrals: (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    ),
+                    commissions: (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ),
+                    packages: (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                    ),
+                    users: (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    ),
+                  };
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => selectTab(item.key)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        activeTab === item.key
+                          ? 'bg-[#1a2f3f] text-[#16a7a1]'
+                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                      }`}
+                    >
+                      {icons[item.key] ?? null}
+                      {item.label}
+                    </button>
+                  );
+                })}
           </div>
 
           <div className="p-4 border-t border-[#1a2f3f]">
@@ -2762,15 +3276,8 @@ export default function Dashboard() {
 
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="mt-6">
-            {activeTab === 'overview' && (
-              <>
-                {renderReferralLink()}
-                {renderAccountBalanceCard()}
-                {renderTopUpCard()}
-                {renderOverview()}
-              </>
-            )}
+          <div className="mt-6 space-y-6">
+            {activeTab === 'overview' && renderOverview()}
             {activeTab === 'referrals' && renderReferrals()}
             {activeTab === 'commissions' && <div ref={commissionsSectionRef}>{renderCommissions()}</div>}
             {activeTab === 'packages' && (
