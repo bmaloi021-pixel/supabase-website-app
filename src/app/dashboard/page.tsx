@@ -1542,16 +1542,16 @@ export default function Dashboard() {
     };
 
     return (
-      <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-2xl max-h-[80vh] w-full max-w-3xl overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
-            <h2 className="text-xl font-semibold text-gray-900">Recent Top Ups</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7eb3b0]">History</p>
+            <h2 className="text-xl font-semibold text-white">Recent Top Ups</h2>
           </div>
           <button
             type="button"
             onClick={closeTopUpHistory}
-            className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="rounded-full border border-[#1a2f3f] p-2 text-[#7eb3b0] transition hover:bg-[#132f40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a7a1]"
             aria-label="Close top-up history modal"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
@@ -1560,7 +1560,7 @@ export default function Dashboard() {
             </svg>
           </button>
         </div>
-        <div className="px-6 py-3 text-xs text-gray-500">
+        <div className="px-6 py-3 text-xs text-[#6a8f99]">
           Most recent {Math.min(topUpRequests.length, 20)} submissions • Balances update once reviewed
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
@@ -1569,14 +1569,14 @@ export default function Dashboard() {
               {topUpRequests.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
-                    <p className="text-xs text-gray-500">{new Date(entry.created_at).toLocaleString()}</p>
+                    <p className="text-base font-semibold text-white">{formatCurrency(entry.amount)}</p>
+                    <p className="text-xs text-[#7eb3b0]">{new Date(entry.created_at).toLocaleString()}</p>
                     {entry.status_notes ? (
-                      <p className="text-xs text-gray-500">
-                        Ref: <span className="font-mono text-gray-700">{entry.status_notes}</span>
+                      <p className="text-xs text-[#6a8f99]">
+                        Ref: <span className="font-mono text-[#9fc3c1]">{entry.status_notes}</span>
                       </p>
                     ) : null}
                   </div>
@@ -1587,8 +1587,8 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm text-gray-500">
-              You haven’t submitted any top-up requests yet.
+            <div className="rounded-2xl border border-dashed border-[#1a2f3f] bg-[#0b1721] px-4 py-12 text-center text-sm text-[#6a8f99]">
+              You haven't submitted any top-up requests yet.
             </div>
           )}
         </div>
@@ -1597,16 +1597,16 @@ export default function Dashboard() {
   };
 
   const renderWithdrawalHistoryModal = () => (
-    <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-2xl max-h-[80vh] w-full max-w-3xl overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
-          <h2 className="text-xl font-semibold text-gray-900">Package Withdrawals</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7eb3b0]">History</p>
+          <h2 className="text-xl font-semibold text-white">Package Withdrawals</h2>
         </div>
         <button
           type="button"
           onClick={closeWithdrawalHistory}
-          className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="rounded-full border border-[#1a2f3f] p-2 text-[#7eb3b0] transition hover:bg-[#132f40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a7a1]"
           aria-label="Close withdrawal history modal"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
@@ -1615,30 +1615,30 @@ export default function Dashboard() {
           </svg>
         </button>
       </div>
-      <div className="px-6 py-3 text-xs text-gray-500">Completed package withdrawals and released balances</div>
+      <div className="px-6 py-3 text-xs text-[#6a8f99]">Completed package withdrawals and released balances</div>
       <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
         {withdrawalHistoryEntries.length > 0 ? (
           <div className="space-y-3">
             {withdrawalHistoryEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
-                  <p className="text-xs text-gray-500">{new Date(entry.withdrawnAt).toLocaleString()}</p>
-                  <p className="text-xs text-gray-500">
-                    Package: <span className="font-medium text-gray-700">{entry.packageName ?? '—'}</span>
+                  <p className="text-base font-semibold text-white">{formatCurrency(entry.amount)}</p>
+                  <p className="text-xs text-[#7eb3b0]">{new Date(entry.withdrawnAt).toLocaleString()}</p>
+                  <p className="text-xs text-[#6a8f99]">
+                    Package: <span className="font-medium text-[#9fc3c1]">{entry.packageName ?? '—'}</span>
                   </p>
                 </div>
-                <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-green-100 text-green-800">
+                <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-[#16a7a1]/20 text-[#16a7a1]">
                   Released
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm font-semibold text-gray-600">
+          <div className="rounded-2xl border border-dashed border-[#1a2f3f] bg-[#0b1721] px-4 py-12 text-center text-sm font-semibold text-[#6a8f99]">
             None
           </div>
         )}
@@ -1648,23 +1648,23 @@ export default function Dashboard() {
 
   const renderAccountWithdrawalHistoryModal = () => {
     const statusStyle: Record<AccountWithdrawalEntry['status'], string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800',
-      processing: 'bg-blue-100 text-blue-800',
+      pending: 'bg-[#d4b673]/20 text-[#d4b673]',
+      approved: 'bg-[#16a7a1]/20 text-[#16a7a1]',
+      rejected: 'bg-red-500/20 text-red-400',
+      processing: 'bg-[#3d7cff]/20 text-[#3d7cff]',
     };
 
     return (
-      <div className="rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[80vh] w-full max-w-3xl overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-2xl max-h-[80vh] w-full max-w-3xl overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">History</p>
-            <h2 className="text-xl font-semibold text-gray-900">Account Withdrawals</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7eb3b0]">History</p>
+            <h2 className="text-xl font-semibold text-white">Account Withdrawals</h2>
           </div>
           <button
             type="button"
             onClick={closeAccountWithdrawalHistory}
-            className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="rounded-full border border-[#1a2f3f] p-2 text-[#7eb3b0] transition hover:bg-[#132f40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a7a1]"
             aria-label="Close account withdrawal history modal"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth="2">
@@ -1673,16 +1673,16 @@ export default function Dashboard() {
             </svg>
           </button>
         </div>
-        <div className="px-6 py-3 text-xs text-gray-500">
+        <div className="px-6 py-3 text-xs text-[#6a8f99]">
           Balance withdrawal requests and their processing status
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
           {accountWithdrawalLoading ? (
-            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm text-gray-500">
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] px-4 py-12 text-center text-sm text-[#6a8f99]">
               Loading withdrawal history...
             </div>
           ) : accountWithdrawalError ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50/60 px-4 py-12 text-center text-sm text-red-600">
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-12 text-center text-sm text-red-400">
               {accountWithdrawalError}
             </div>
           ) : accountWithdrawals.length > 0 ? (
@@ -1690,21 +1690,21 @@ export default function Dashboard() {
               {accountWithdrawals.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-gray-50/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-base font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-base font-semibold text-white">{formatCurrency(entry.amount)}</p>
+                    <p className="text-xs text-[#7eb3b0]">
                       Requested: {new Date(entry.created_at).toLocaleString()}
                     </p>
                     {entry.processed_at ? (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-[#7eb3b0]">
                         Processed: {new Date(entry.processed_at).toLocaleString()}
                       </p>
                     ) : null}
                     {entry.status_notes ? (
-                      <p className="text-xs text-gray-500">
-                        Note: <span className="font-mono text-gray-700">{entry.status_notes}</span>
+                      <p className="text-xs text-[#6a8f99]">
+                        Note: <span className="font-mono text-[#9fc3c1]">{entry.status_notes}</span>
                       </p>
                     ) : null}
                   </div>
@@ -1715,7 +1715,7 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center text-sm font-semibold text-gray-600">
+            <div className="rounded-2xl border border-dashed border-[#1a2f3f] bg-[#0b1721] px-4 py-12 text-center text-sm font-semibold text-[#6a8f99]">
               No account withdrawal requests yet
             </div>
           )}
@@ -1735,14 +1735,14 @@ export default function Dashboard() {
     description: string;
     icon: React.ReactNode;
   }) => (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-gray-900 shadow-sm">
+    <div className="rounded-xl border border-[#1a2f3f] bg-[#0f1f2e] p-5 text-white shadow-md">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
-          <p className="mt-1 text-xs text-gray-500">{description}</p>
+          <p className="text-sm font-medium text-[#7eb3b0]">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+          <p className="mt-1 text-xs text-[#6a8f99]">{description}</p>
         </div>
-        <div className="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+        <div className="h-11 w-11 rounded-xl bg-[#132f40] text-[#16a7a1] flex items-center justify-center shadow-inner">
           {icon}
         </div>
       </div>
@@ -1762,41 +1762,44 @@ export default function Dashboard() {
     children: React.ReactNode;
     accent?: 'yellow' | 'green' | 'blue' | 'purple';
   }) => {
-    const accentClass = {
-      yellow: 'border-yellow-200',
-      green: 'border-emerald-200',
-      blue: 'border-sky-200',
-      purple: 'border-indigo-200',
-    }[accent];
+    const accentStyles: Record<typeof accent, { border: string; glow: string }> = {
+      yellow: { border: 'border-[#3b2f17]', glow: 'shadow-[#d4b673]/10' },
+      green: { border: 'border-[#14322e]', glow: 'shadow-[#16a7a1]/10' },
+      blue: { border: 'border-[#173049]', glow: 'shadow-[#3d7cff]/10' },
+      purple: { border: 'border-[#2a1f47]', glow: 'shadow-[#9c6dff]/10' },
+    };
+    const palette = accentStyles[accent];
 
     return (
-      <div className={`rounded-2xl border ${accentClass} bg-white p-6 text-gray-900 shadow-sm`}>
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 pb-4">
+      <div className={`rounded-2xl border ${palette.border} bg-[#0f1f2e] p-6 text-white shadow-lg ${palette.glow}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#1a2f3f] pb-4">
           <div>
-            <h3 className="text-xl font-semibold">{title}</h3>
-            {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}
+            <h3 className="text-xl font-semibold text-white">{title}</h3>
+            {subtitle ? <p className="mt-1 text-sm text-[#7eb3b0]">{subtitle}</p> : null}
           </div>
           {action}
         </div>
-        <div className="pt-4">{children}</div>
+        <div className="pt-4 text-[#cfe3e8]">{children}</div>
       </div>
     );
   };
 
   const renderHeroHeader = () => (
-    <div className="rounded-3xl border border-gray-200 bg-indigo-50/60 p-6 sm:p-8 text-gray-900 shadow-sm">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="h-14 w-14 rounded-full bg-white text-indigo-600 flex items-center justify-center text-2xl font-semibold border border-indigo-100">
-          {profile?.first_name?.[0] ?? 'X'}
+    <div className="relative overflow-hidden rounded-3xl border border-[#1c3f4c] bg-gradient-to-br from-[#102335] via-[#133247] to-[#0c1f2b] p-6 sm:p-8 text-white shadow-lg shadow-black/40">
+      <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-[#16a7a1]/15 blur-2xl" />
+      <div className="absolute -bottom-24 -left-20 h-60 w-60 rounded-full bg-[#d4b673]/15 blur-3xl" />
+      <div className="relative flex flex-wrap items-center gap-4">
+        <div className="h-14 w-14 rounded-2xl border border-[#1c3f4c] bg-[#091522] text-[#16a7a1] flex items-center justify-center text-2xl font-semibold shadow-inner shadow-black/40">
+          {profile?.first_name?.[0]?.toUpperCase() ?? 'X'}
         </div>
         <div className="flex-1">
-          <p className="text-sm uppercase tracking-[0.25em] text-indigo-400">Welcome</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">
-            Hello, <span className="text-indigo-600">@{profile?.username}</span>!
+          <p className="text-xs uppercase tracking-[0.4em] text-[#7eb3b0]/70">Welcome back</p>
+          <h1 className="text-2xl sm:text-3xl font-semibold">
+            Hello, <span className="text-[#f3cc84]">@{profile?.username ?? 'user'}</span>!
           </h1>
-          <p className="text-sm text-gray-600">Manage your investments and track your earnings</p>
+          <p className="text-sm text-[#9fc3c1]">Manage your investments, track earnings, and grow your portfolio.</p>
         </div>
-        <div className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600">
+        <div className="rounded-full border border-[#1c3f4c] bg-[#112333] px-4 py-2 text-sm font-semibold text-[#7eb3b0]">
           {profile?.role ?? 'User'}
         </div>
       </div>
@@ -1828,7 +1831,7 @@ export default function Dashboard() {
         </button>
       }
     >
-      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+      <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 text-sm text-[#9fc3c1] font-mono break-all">
         {profile?.referral_code
           ? `${window.location.origin}/signup?ref=${profile.referral_code}`
           : 'Referral link unavailable (missing referral_code)'}
@@ -1894,7 +1897,7 @@ export default function Dashboard() {
       accent="blue"
     >
       {availedUserPackages.filter((up) => !up?.withdrawn_at).length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center text-gray-500">
+        <div className="rounded-2xl border border-[#1a2f3f] bg-[#0d2131] p-6 text-center text-[#6a8f99]">
           No active investments yet.
         </div>
       ) : (
@@ -1902,37 +1905,35 @@ export default function Dashboard() {
           {availedUserPackages
             .filter((up) => !up?.withdrawn_at)
             .map((up) => (
-              <div key={up.id} className="rounded-2xl border border-gray-200 bg-white p-5 text-gray-900">
-                <div className="mb-4 flex items-center justify-between text-sm">
-                  <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
+              <div key={up.id} className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-5 text-white shadow-inner shadow-black/20">
+                <div className="mb-4 flex items-center justify-between text-sm text-[#9fc3c1]">
+                  <div className="rounded-full bg-[#133247] px-3 py-1 text-xs font-semibold text-[#16a7a1]">
                     {up.packages?.name ?? up.package_id}
                   </div>
-                  <span className="text-gray-500">
-                    {up.created_at ? new Date(up.created_at).toLocaleDateString() : '-'}
-                  </span>
+                  <span>{up.created_at ? new Date(up.created_at).toLocaleDateString() : '-'}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm text-[#9fc3c1]">
                   <div>
-                    <p className="text-gray-500">Invested</p>
-                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                    <p>Invested</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
                       {formatCurrency((up as any)?.packages?.price)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Expected</p>
-                    <p className="mt-1 text-lg font-semibold text-green-600">
+                    <p>Expected</p>
+                    <p className="mt-1 text-lg font-semibold text-[#f3cc84]">
                       {formatCurrency((up as any)?.packages?.price * 1.2)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Rate</p>
-                    <p className="mt-1 font-semibold text-indigo-600">
+                    <p>Rate</p>
+                    <p className="mt-1 font-semibold text-[#16a7a1]">
                       {(up as any)?.packages?.commission_rate ?? 20}%
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Progress</p>
-                    <p className="mt-1 font-semibold text-gray-800">{getMaturityLabel(up) ?? 'Instant'}</p>
+                    <p>Progress</p>
+                    <p className="mt-1 font-semibold text-white">{getMaturityLabel(up) ?? 'Instant'}</p>
                   </div>
                 </div>
                 {isWithdrawable(up) ? (
@@ -1940,13 +1941,13 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => handleWithdrawPackage(up.id)}
                     disabled={packageWithdrawLoading}
-                    className="mt-4 w-full rounded-full bg-indigo-600 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                    className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#16a7a1] via-[#1ed3c2] to-[#9fdccd] py-2 text-sm font-semibold text-[#062226] transition hover:opacity-95 disabled:opacity-50"
                   >
                     Withdraw
                   </button>
                 ) : (
-                  <div className="mt-4 rounded-full border border-gray-200 px-4 py-2 text-center text-xs text-gray-500">
-                    0.0% Complete
+                  <div className="mt-4 rounded-xl border border-[#1a2f3f] bg-[#0b1721] px-4 py-2 text-center text-xs text-[#637d86]">
+                    Awaiting maturity
                   </div>
                 )}
               </div>
@@ -1962,21 +1963,21 @@ export default function Dashboard() {
         <div className="grid gap-3">
           <button
             onClick={() => setShowTopUpForm(true)}
-            className="rounded-xl bg-indigo-600 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+            className="rounded-xl bg-gradient-to-r from-[#d4b673] to-[#f2c572] py-3 text-center text-sm font-semibold text-[#1a1a1a] shadow-md hover:opacity-90 transition"
           >
             Deposit
           </button>
           <button
             type="button"
             onClick={focusPackagesSection}
-            className="rounded-xl border border-gray-200 bg-white py-3 text-center text-sm font-semibold text-gray-700"
+            className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition"
           >
             Buy Packages
           </button>
           <button
             type="button"
             onClick={openTopUpHistory}
-            className="rounded-xl border border-gray-200 bg-gray-50 py-3 text-center text-sm font-semibold text-gray-500"
+            className="rounded-xl border border-[#1a2f3f] bg-[#0b1721] py-3 text-center text-sm font-medium text-[#7eb3b0] hover:bg-[#132f40] transition"
           >
             View History
           </button>
@@ -1985,13 +1986,13 @@ export default function Dashboard() {
 
       <SectionCard title="Withdrawal" accent="blue">
         <div className="grid gap-3">
-          <button className="rounded-xl bg-green-600 py-3 text-center text-sm font-semibold text-white shadow-sm hover:bg-green-500">
+          <button className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition">
             Withdraw (₱0.00)
           </button>
           <button
             type="button"
             onClick={openAccountWithdrawalHistory}
-            className="rounded-xl border border-gray-200 bg-gray-50 py-3 text-center text-sm font-semibold text-gray-500"
+            className="rounded-xl border border-[#1a2f3f] bg-[#0b1721] py-3 text-center text-sm font-medium text-[#7eb3b0] hover:bg-[#132f40] transition"
           >
             View History
           </button>
@@ -2005,15 +2006,15 @@ export default function Dashboard() {
       {!showTopUpForm ? (
         <button
           onClick={() => setShowTopUpForm(true)}
-          className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white"
+          className="rounded-full bg-gradient-to-r from-[#d4b673] to-[#f2c572] px-5 py-2 text-sm font-semibold text-[#1a1a1a] shadow-md hover:opacity-90 transition"
         >
           Top Up Balance
         </button>
       ) : (
         <form onSubmit={handleTopUp} className="space-y-4">
           {publicPaymentMethods.length > 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <p className="text-sm font-semibold text-gray-700">Payment method</p>
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+              <p className="text-sm font-semibold text-[#9fc3c1]">Payment method</p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {publicPaymentMethods.map((m) => (
                   <button
@@ -2022,19 +2023,19 @@ export default function Dashboard() {
                     onClick={() => setSelectedPublicPaymentMethodId(m.id)}
                     className={`rounded-2xl border p-4 text-left transition ${
                       selectedPublicPaymentMethodId === m.id
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-200 bg-white hover:border-indigo-100'
+                        ? 'border-[#16a7a1] bg-[#132f40]'
+                        : 'border-[#1a2f3f] bg-[#0f1f2e] hover:border-[#16a7a1]/50'
                     }`}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
                       <div className="flex-1 space-y-2">
                         <div>
-                          <p className="text-sm font-semibold text-gray-900">
+                          <p className="text-sm font-semibold text-white">
                             {(m.provider || (m.type === 'gcash' ? 'GCash' : m.type)) + (m.label ? ` - ${m.label}` : '')}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                          <p className="font-semibold text-gray-700">Account Details</p>
+                        <div className="rounded-xl border border-[#1a2f3f] bg-[#091522] p-3 text-xs text-[#7eb3b0]">
+                          <p className="font-semibold text-[#9fc3c1]">Account Details</p>
                           {m.type === 'gcash' ? (
                             <>
                               <p>Account Name: {m.account_name ?? '—'}</p>
@@ -2051,7 +2052,7 @@ export default function Dashboard() {
                       </div>
                       {publicPaymentQrUrls[m.id] ? (
                         <div className="w-full sm:w-52">
-                          <div className="aspect-square w-full rounded-2xl border border-gray-200 bg-white flex items-center justify-center p-3">
+                          <div className="aspect-square w-full rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] flex items-center justify-center p-3">
                             <img
                               src={publicPaymentQrUrls[m.id]}
                               alt="Payment preview"
@@ -2066,23 +2067,23 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-gray-500">
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 text-[#6a8f99]">
               No payment methods available yet.
             </div>
           )}
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-4">
-            <label htmlFor="amount" className="text-sm text-gray-600">
+          <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+            <label htmlFor="amount" className="text-sm text-[#7eb3b0]">
               Amount
             </label>
             <div className="mt-2 flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
-                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">₱</span>
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#6a8f99]">₱</span>
                 <input
                   type="number"
                   id="amount"
                   name="amount"
-                  className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-8 pr-3 text-gray-900 outline-none focus:border-indigo-500"
+                  className="w-full rounded-xl border border-[#1a2f3f] bg-[#091522] py-2 pl-8 pr-3 text-white outline-none focus:border-[#16a7a1]"
                   placeholder="0.00"
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
@@ -2095,7 +2096,7 @@ export default function Dashboard() {
                 <button
                   type="submit"
                   disabled={isProcessingPayment}
-                  className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="rounded-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-4 py-2 text-sm font-semibold text-[#062226] disabled:opacity-50 shadow-md hover:opacity-90 transition"
                 >
                   {isProcessingPayment ? 'Processing…' : 'Submit'}
                 </button>
@@ -2105,7 +2106,7 @@ export default function Dashboard() {
                     setShowTopUpForm(false);
                     setPaymentError(null);
                   }}
-                  className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600"
+                  className="rounded-full border border-[#1a2f3f] px-4 py-2 text-sm text-[#7eb3b0] hover:bg-[#132f40] transition"
                 >
                   Cancel
                 </button>
@@ -2141,11 +2142,11 @@ export default function Dashboard() {
   );
 
   const renderUsers = () => (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="bg-[#0f1f2e] rounded-lg shadow-lg border border-[#1a2f3f] overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#1a2f3f] flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Registered Users</h3>
-          <p className="text-sm text-gray-500">Admin only: view users and change their roles.</p>
+          <h3 className="text-lg font-semibold text-white">Registered Users</h3>
+          <p className="text-sm text-[#7eb3b0]">Admin only: view users and change their roles.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -2164,8 +2165,8 @@ export default function Dashboard() {
                   onClick={() => setUsersRoleFilter(opt.value as any)}
                   className={
                     isActive
-                      ? 'inline-flex items-center px-3 py-1.5 border border-indigo-600 text-sm font-medium rounded-md text-white bg-indigo-600'
-                      : 'inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50'
+                      ? 'inline-flex items-center px-3 py-1.5 border border-[#16a7a1] text-sm font-medium rounded-md text-[#0a1621] bg-[#16a7a1]'
+                      : 'inline-flex items-center px-3 py-1.5 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#7eb3b0] bg-[#0f1f2e] hover:bg-[#132f40]'
                   }
                 >
                   {opt.label}
@@ -2177,7 +2178,7 @@ export default function Dashboard() {
             onClick={() => {
               setActiveTab('users');
             }}
-            className="inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50"
+            className="inline-flex items-center px-3 py-2 border border-[#16a7a1] text-sm font-medium rounded-md text-[#16a7a1] bg-[#0f1f2e] hover:bg-[#132f40]"
           >
             Refresh
           </button>
@@ -2185,43 +2186,43 @@ export default function Dashboard() {
       </div>
 
       {(usersListError || impersonateError) && (
-        <div className="px-6 py-4 text-sm text-red-600">{usersListError || impersonateError}</div>
+        <div className="px-6 py-4 text-sm text-red-400">{usersListError || impersonateError}</div>
       )}
 
       {usersListLoading ? (
-        <div className="px-6 py-8 text-center text-sm text-gray-500">Loading users…</div>
+        <div className="px-6 py-8 text-center text-sm text-[#6a8f99]">Loading users…</div>
       ) : (
         (() => {
           const filteredUsers = usersRoleFilter === 'all' ? usersList : usersList.filter((u) => u.role === usersRoleFilter);
           return (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[#1a2f3f]">
+            <thead className="bg-[#0b1721]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Earnings</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Username</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Balance</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Total Earnings</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-[#0f1f2e] divide-y divide-[#1a2f3f]">
               {filteredUsers.map((u) => {
                 const isSelf = u.id === user?.id;
                 const isBusy = userRoleSavingId === u.id;
                 const isViewing = impersonateLoadingId === u.id;
                 return (
                   <tr key={u.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       {u.first_name} {u.last_name}{isSelf ? ' (you)' : ''}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.username}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency((u as any)?.balance ?? 0)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency((u as any)?.total_earnings ?? 0)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">{u.username}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatCurrency((u as any)?.balance ?? 0)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatCurrency((u as any)?.total_earnings ?? 0)}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
-                        className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60"
+                        className="border border-[#1a2f3f] rounded-md px-3 py-2 text-sm text-white bg-[#091522] focus:outline-none focus:ring-2 focus:ring-[#16a7a1] focus:border-[#16a7a1] disabled:opacity-60"
                         value={u.role}
                         onChange={(e) => {
                           const nextRole = e.target.value as Role;
@@ -2246,7 +2247,7 @@ export default function Dashboard() {
                           <button
                             onClick={() => handleImpersonate(u.id)}
                             disabled={isViewing}
-                            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                            className="inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#7eb3b0] bg-[#0f1f2e] hover:bg-[#132f40] disabled:opacity-50"
                           >
                             {isViewing ? 'Opening…' : 'View'}
                           </button>
@@ -2259,7 +2260,7 @@ export default function Dashboard() {
             </tbody>
           </table>
           {filteredUsers.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-500">No users found.</div>
+            <div className="px-6 py-8 text-center text-sm text-[#6a8f99]">No users found.</div>
           )}
         </div>
           );
@@ -2269,53 +2270,53 @@ export default function Dashboard() {
   );
 
   const renderReferrals = () => (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Your Referrals</h3>
+    <div className="bg-[#0f1f2e] rounded-lg shadow-lg border border-[#1a2f3f] overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#1a2f3f]">
+        <h3 className="text-lg font-semibold text-white">Your Referrals</h3>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-[#1a2f3f]">
+          <thead className="bg-[#0b1721]">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">
                 Username
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">
                 Commission
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">
                 Date
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-[#0f1f2e] divide-y divide-[#1a2f3f]">
             {referrals.map((referral) => (
               <tr key={referral.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                   {referral.referred.first_name} {referral.referred.last_name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">
                   {referral.referred.username}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                     referral.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
+                      ? 'bg-[#16a7a1]/20 text-[#16a7a1]' 
+                      : 'bg-[#d4b673]/20 text-[#d4b673]'
                   }`}>
                     {referral.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#9fc3c1]">
                   {formatCurrency(referral.commission_earned)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">
                   {new Date(referral.created_at).toLocaleDateString()}
                 </td>
               </tr>
@@ -2324,7 +2325,7 @@ export default function Dashboard() {
         </table>
         {referrals.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-gray-500">No referrals yet</p>
+            <p className="text-[#6a8f99]">No referrals yet</p>
           </div>
         )}
       </div>
@@ -2332,43 +2333,43 @@ export default function Dashboard() {
   );
 
   const renderCommissions = () => (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Commission History</h3>
+    <div className="bg-[#0f1f2e] rounded-lg shadow-lg border border-[#1a2f3f] overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#1a2f3f]">
+        <h3 className="text-lg font-semibold text-white">Commission History</h3>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-[#1a2f3f]">
+          <thead className="bg-[#0b1721]">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Level</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Date</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-[#0f1f2e] divide-y divide-[#1a2f3f]">
             {commissions.map((commission) => (
               <tr key={commission.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                   {formatCurrency(commission.amount)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">
                   {commission.commission_type}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">
                   Level {commission.level}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                     commission.status === 'paid' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
+                      ? 'bg-[#16a7a1]/20 text-[#16a7a1]' 
+                      : 'bg-[#d4b673]/20 text-[#d4b673]'
                   }`}>
                     {commission.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">
                   {new Date(commission.created_at).toLocaleDateString()}
                 </td>
               </tr>
@@ -2377,7 +2378,7 @@ export default function Dashboard() {
         </table>
         {commissions.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-gray-500">No commissions yet</p>
+            <p className="text-[#6a8f99]">No commissions yet</p>
           </div>
         )}
       </div>
@@ -2389,7 +2390,7 @@ export default function Dashboard() {
       {(profile?.role === 'admin' || packageAdminError) && (
         <div className="flex items-center justify-between gap-3">
           <div>
-            {packageAdminError && <div className="text-sm text-red-600">{packageAdminError}</div>}
+            {packageAdminError && <div className="text-sm text-red-400">{packageAdminError}</div>}
           </div>
           {profile?.role === 'admin' && (
             <button
@@ -2397,7 +2398,7 @@ export default function Dashboard() {
                 setPackageAdminError(null);
                 setIsAddPackageOpen(true);
               }}
-              className="inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50"
+              className="inline-flex items-center px-3 py-2 border border-[#16a7a1] text-sm font-medium rounded-md text-[#16a7a1] bg-[#0f1f2e] hover:bg-[#132f40]"
             >
               Add Package
             </button>
@@ -2406,7 +2407,7 @@ export default function Dashboard() {
       )}
 
       {packagePurchaseError ? (
-        <div className="text-sm text-red-600">{packagePurchaseError}</div>
+        <div className="text-sm text-red-400">{packagePurchaseError}</div>
       ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2419,32 +2420,32 @@ export default function Dashboard() {
           return (
             <div
               key={pkg.id}
-              className={`bg-white rounded-lg shadow p-6 ${isActive ? 'ring-2 ring-indigo-500' : ''}`}
+              className={`bg-[#0f1f2e] rounded-lg shadow-lg border border-[#1a2f3f] p-6 ${isActive ? 'ring-2 ring-[#16a7a1]' : ''}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{pkg.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{pkg.description}</p>
+                  <h3 className="text-lg font-semibold text-white">{pkg.name}</h3>
+                  <p className="text-sm text-[#7eb3b0] mt-1">{pkg.description}</p>
                 </div>
               </div>
 
-              <p className="text-2xl font-bold text-gray-900 mt-4">{formatCurrency(pkg.price)}</p>
-              <p className="text-sm text-gray-500 mt-1">{pkg.commission_rate}% commission</p>
+              <p className="text-2xl font-bold text-white mt-4">{formatCurrency(pkg.price)}</p>
+              <p className="text-sm text-[#7eb3b0] mt-1">{pkg.commission_rate}% commission</p>
               {isActive && activeRowsForPkg.length > 1 ? (
-                <p className="text-xs text-indigo-700 mt-2">Active: {activeRowsForPkg.length}</p>
+                <p className="text-xs text-[#16a7a1] mt-2">Active: {activeRowsForPkg.length}</p>
               ) : null}
               {isActive && getMaturityLabel(activeRowForDisplay) ? (
                 <div className="mt-2">
-                  <p className="text-xs text-gray-600">Matures: {getMaturityLabel(activeRowForDisplay)}</p>
+                  <p className="text-xs text-[#7eb3b0]">Matures: {getMaturityLabel(activeRowForDisplay)}</p>
                   {renderMaturityProgressBar(activeRowForDisplay)}
                 </div>
               ) : null}
               {isActive && activeRowForDisplay?.withdrawn_at ? (
-                <p className="text-xs text-green-700 mt-1">
+                <p className="text-xs text-[#16a7a1] mt-1">
                   Withdrawn: {new Date(activeRowForDisplay.withdrawn_at).toLocaleString()}
                 </p>
               ) : null}
-              <p className="text-sm text-gray-500 mt-1">Max referrals: {pkg.max_referrals || 'Unlimited'}</p>
+              <p className="text-sm text-[#6a8f99] mt-1">Max referrals: {pkg.max_referrals || 'Unlimited'}</p>
 
               {profile?.role === 'admin' ? (
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2452,7 +2453,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => handleDeactivatePackage(pkg)}
                       disabled={isBusy}
-                      className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="w-full bg-[#0f1f2e] text-[#16a7a1] py-2 px-4 rounded-md border border-[#16a7a1] hover:bg-[#132f40] focus:outline-none focus:ring-2 focus:ring-[#16a7a1] disabled:opacity-50"
                     >
                       {isBusy ? 'Working…' : 'Deactivate'}
                     </button>
@@ -2460,7 +2461,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => handleActivatePackage(pkg)}
                       disabled={isBusy}
-                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="w-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] text-[#062226] py-2 px-4 rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#16a7a1] disabled:opacity-50"
                     >
                       {isBusy ? 'Working…' : 'Activate'}
                     </button>
@@ -2469,7 +2470,7 @@ export default function Dashboard() {
                   <button
                     onClick={() => handleDeletePackage(pkg)}
                     disabled={packageAdminLoading}
-                    className="w-full bg-white text-red-700 py-2 px-4 rounded-md border border-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                    className="w-full bg-[#0f1f2e] text-red-400 py-2 px-4 rounded-md border border-red-500/50 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
                   >
                     {packageAdminLoading ? 'Working…' : 'Delete'}
                   </button>
@@ -2480,7 +2481,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => handleDeactivatePackage(pkg)}
                       disabled={isBusy}
-                      className="w-full bg-white text-indigo-700 py-2 px-4 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="w-full bg-[#0f1f2e] text-[#16a7a1] py-2 px-4 rounded-md border border-[#16a7a1] hover:bg-[#132f40] focus:outline-none focus:ring-2 focus:ring-[#16a7a1] disabled:opacity-50"
                     >
                       {isBusy ? 'Working…' : 'Deactivate'}
                     </button>
@@ -2488,7 +2489,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => handleActivatePackage(pkg)}
                       disabled={isBusy}
-                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="w-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] text-[#062226] py-2 px-4 rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#16a7a1] disabled:opacity-50"
                     >
                       {isBusy ? 'Working…' : 'Buy Package'}
                     </button>
@@ -2502,42 +2503,42 @@ export default function Dashboard() {
 
       {isAddPackageOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setIsAddPackageOpen(false)} />
+          <div className="absolute inset-0 bg-black/60" onClick={() => setIsAddPackageOpen(false)} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Add Package</h3>
+            <div className="w-full max-w-lg rounded-lg bg-[#0f1f2e] border border-[#1a2f3f] shadow-2xl">
+              <div className="px-6 py-4 border-b border-[#1a2f3f] flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Add Package</h3>
                 <button
                   onClick={() => setIsAddPackageOpen(false)}
-                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                  className="text-sm font-medium text-[#7eb3b0] hover:text-white"
                 >
                   Close
                 </button>
               </div>
               <div className="px-6 py-4 space-y-3">
-                {packageAdminError && <div className="text-sm text-red-600">{packageAdminError}</div>}
+                {packageAdminError && <div className="text-sm text-red-400">{packageAdminError}</div>}
                 <div className="grid grid-cols-1 gap-3">
                   <input
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                    className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                     placeholder="Name"
                     value={newPackage.name}
                     onChange={(e) => setNewPackage((p) => ({ ...p, name: e.target.value }))}
                   />
                   <input
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                    className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                     placeholder="Description"
                     value={newPackage.description}
                     onChange={(e) => setNewPackage((p) => ({ ...p, description: e.target.value }))}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
-                      className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                       placeholder="Price"
                       value={newPackage.price}
                       onChange={(e) => setNewPackage((p) => ({ ...p, price: e.target.value }))}
                     />
                     <input
-                      className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                       placeholder="Commission rate (%)"
                       value={newPackage.commission_rate}
                       onChange={(e) => setNewPackage((p) => ({ ...p, commission_rate: e.target.value }))}
@@ -2545,7 +2546,7 @@ export default function Dashboard() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
-                      className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                       placeholder="Level"
                       value={newPackage.level}
                       onChange={(e) => setNewPackage((p) => ({ ...p, level: e.target.value }))}
@@ -2553,7 +2554,7 @@ export default function Dashboard() {
                     <input
                       id="max_referrals"
                       name="max_referrals"
-                      className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                       placeholder="Max referrals (optional)"
                       value={newPackage.max_referrals}
                       onChange={(e) => setNewPackage((p) => ({ ...p, max_referrals: e.target.value }))}
@@ -2561,7 +2562,7 @@ export default function Dashboard() {
                     <input
                       id="maturity_days"
                       name="maturity_days"
-                      className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className="border border-[#1a2f3f] bg-[#091522] rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6a8f99] focus:border-[#16a7a1] outline-none"
                       placeholder="Maturity days (0 = instant)"
                       value={newPackage.maturity_days}
                       onChange={(e) => setNewPackage((p) => ({ ...p, maturity_days: e.target.value }))}
@@ -2569,17 +2570,17 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <div className="px-6 py-4 border-t border-[#1a2f3f] flex justify-end gap-3">
                 <button
                   onClick={() => setIsAddPackageOpen(false)}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#7eb3b0] bg-[#0f1f2e] hover:bg-[#132f40]"
                   disabled={packageAdminLoading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreatePackage}
-                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-[#062226] bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] hover:opacity-90 disabled:opacity-50"
                   disabled={packageAdminLoading}
                 >
                   {packageAdminLoading ? 'Saving…' : 'Create'}
@@ -2608,15 +2609,15 @@ export default function Dashboard() {
   // Show loading state only if we don't have profile data and packages data yet
   if (loading && (!profile || !packages.length)) {
     return (
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-        <p className="text-gray-600 mb-2">Loading your dashboard...</p>
+      <div className="min-h-screen bg-[#0a1621] flex flex-col items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#16a7a1] mb-4"></div>
+        <p className="text-[#9fc3c1] mb-2">Loading your dashboard...</p>
         {loadingError && (
-          <div className="mt-4 p-3 bg-yellow-50 text-yellow-700 rounded-md text-sm max-w-md text-center">
+          <div className="mt-4 p-3 bg-[#1a2f3f] text-[#f3cc84] rounded-md text-sm max-w-md text-center">
             {loadingError}
             <button 
               onClick={() => window.location.reload()} 
-              className="mt-2 text-indigo-600 hover:text-indigo-800 font-medium"
+              className="mt-2 text-[#16a7a1] hover:text-[#1ed3c2] font-medium"
             >
               Try again
             </button>
@@ -2627,15 +2628,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-[#0a1621]">
+      <nav className="bg-[#0f1a24] border-b border-[#1a2f3f]">
         <div className="w-full px-4">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(true)}
-                  className="mr-3 inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="mr-3 inline-flex items-center justify-center rounded-md p-2 text-[#7eb3b0] hover:bg-[#1a2f3f] focus:outline-none focus:ring-2 focus:ring-[#16a7a1]"
                   aria-label="Open navigation"
                   aria-expanded={isMenuOpen}
                 >
@@ -2646,17 +2647,18 @@ export default function Dashboard() {
                   </svg>
                 </button>
               <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">Xhimer Dashboard</h1>
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm mr-3">X</div>
+                <h1 className="text-xl font-bold text-white">Xhimer</h1>
               </div>
             </div>
             <div className="flex items-center">
-              <span className="text-sm text-gray-700 mr-4">
+              <span className="text-sm text-[#9fc3c1] mr-4">
                 {profile?.first_name} {profile?.last_name}
               </span>
               {hasAdminBackup && isImpersonating && !isAdmin && (
                 <button
                   onClick={handleReturnToAdmin}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="mr-3 inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#9fc3c1] bg-[#0f1a24] hover:bg-[#1a2f3f]"
                 >
                   Return to Admin
                 </button>
@@ -2664,14 +2666,14 @@ export default function Dashboard() {
               {isAdmin && (
                 <button
                   onClick={() => router.push('/admin')}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50"
+                  className="mr-3 inline-flex items-center px-3 py-2 border border-[#6366f1] text-sm font-medium rounded-md text-[#a5b4fc] bg-[#0f1a24] hover:bg-[#1e1b4b]"
                 >
                   Admin
                 </button>
               )}
               <button
                 onClick={handleSignOut}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6366f1]"
               >
                 Sign out
               </button>
@@ -2682,52 +2684,84 @@ export default function Dashboard() {
 
       <div className={`fixed inset-0 z-40 ${isMenuOpen ? '' : 'pointer-events-none'}`}>
         <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+          className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
             isMenuOpen ? 'opacity-100' : 'opacity-0'
           }`}
           onClick={() => setIsMenuOpen(false)}
         />
 
         <div
-          className={`absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-white shadow-xl transform transition-transform duration-300 ${
+          className={`absolute inset-y-0 left-0 w-64 max-w-[85vw] bg-[#0f1a24] border-r border-[#1a2f3f] shadow-2xl transform transition-transform duration-300 flex flex-col ${
             isMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="flex items-center justify-between px-4 h-16 border-b">
-            <div className="font-semibold text-gray-900">Menu</div>
+          <div className="flex items-center justify-between px-4 h-16 border-b border-[#1a2f3f]">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">X</div>
+              <span className="font-semibold text-white">Xhimer</span>
+            </div>
             <button
               type="button"
               onClick={() => setIsMenuOpen(false)}
-              className="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="inline-flex items-center justify-center rounded-md p-2 text-[#7eb3b0] hover:bg-[#1a2f3f] focus:outline-none focus:ring-2 focus:ring-[#16a7a1]"
               aria-label="Close navigation"
             >
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
 
-          <div className="p-4 space-y-2">
-            {navItems.map((item) => (
+          <div className="flex-1 overflow-y-auto p-4 space-y-1">
+            {navItems.map((item) => {
+              const icons: Record<string, React.ReactNode> = {
+                overview: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
+                referrals: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+                commissions: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                packages: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
+                users: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+              };
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => selectTab(item.key)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === item.key
+                      ? 'bg-[#1a2f3f] text-[#16a7a1]'
+                      : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                  }`}
+                >
+                  {icons[item.key] ?? null}
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-4 border-t border-[#1a2f3f]">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-[#16a7a1] flex items-center justify-center text-white font-semibold">
+                {profile?.first_name?.[0]?.toUpperCase() ?? 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{profile?.first_name ?? 'User'}</p>
+                <p className="text-xs text-[#7eb3b0] truncate">{profile?.role ?? 'user'}</p>
+              </div>
               <button
-                key={item.key}
-                onClick={() => selectTab(item.key)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium ${
-                  activeTab === item.key
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                type="button"
+                className="p-1.5 rounded-md text-[#7eb3b0] hover:bg-[#1a2f3f] hover:text-white"
+                aria-label="More options"
               >
-                {item.label}
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
               </button>
-            ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <main className="py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="mt-6">
             {activeTab === 'overview' && (
               <>
