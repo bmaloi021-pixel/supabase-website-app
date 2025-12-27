@@ -1,32 +1,54 @@
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting'
 
-async function getAdminClientAndAssertAdmin(request: NextRequest) {
+async function getUserFromRequest(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
   const authHeader = request.headers.get('authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
 
-  if (!bearerToken) {
-    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-
-  const anonClient = createClient(url, anonKey)
-
-  const { data: { user: userData }, error: userError } = await anonClient.auth.getUser(bearerToken)
-  if (!userData) {
-    if (userError) {
-      return { errorResponse: NextResponse.json({ error: userError.message }, { status: 401 }) }
+  if (bearerToken) {
+    const anonClient = createClient(url, anonKey)
+    const { data: { user }, error } = await anonClient.auth.getUser(bearerToken)
+    if (user) {
+      return { user }
     }
-    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    if (error) {
+      return { errorResponse: NextResponse.json({ error: error.message }, { status: 401 }) }
+    }
   }
 
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll() {
+        // API routes do not mutate cookies
+      },
+    },
+  })
+
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (user) {
+    return { user }
+  }
+  if (error) {
+    return { errorResponse: NextResponse.json({ error: error.message }, { status: 401 }) }
+  }
+  return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+}
+
+async function getAdminClientAndAssertAdmin(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
   if (!serviceKey) {
     return {
       errorResponse: NextResponse.json(
@@ -36,19 +58,24 @@ async function getAdminClientAndAssertAdmin(request: NextRequest) {
     }
   }
 
+  const { user, errorResponse } = await getUserFromRequest(request)
+  if (errorResponse || !user) {
+    return { errorResponse: errorResponse ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+
   const adminClient = createClient(url, serviceKey)
 
   const { data: myProfile, error: profileError } = await adminClient
     .from('profiles')
     .select('role')
-    .eq('id', userData.id)
+    .eq('id', user.id)
     .single()
 
   if (profileError || myProfile?.role !== 'admin') {
-    return { errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+    return { errorResponse: NextResponse.json({ error: 'Forbidden: Only admins can access this endpoint' }, { status: 403 }) }
   }
 
-  return { adminClient }
+  return { adminClient, userRole: myProfile.role }
 }
 
 export async function GET(request: NextRequest) {
@@ -127,7 +154,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { adminClient, errorResponse } = await getAdminClientAndAssertAdmin(request)
+  const { adminClient, errorResponse, userRole } = await getAdminClientAndAssertAdmin(request)
   if (errorResponse) return errorResponse
 
   const body = await request.json().catch(() => null)
@@ -145,6 +172,16 @@ export async function POST(request: NextRequest) {
   const allowed: Role[] = ['admin', 'user', 'merchant', 'accounting']
   if (!allowed.includes(role as Role)) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+  }
+
+  // Only admins can change roles - merchant and accounting accounts cannot make changes
+  if (userRole !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden: Only admins can modify user roles' }, { status: 403 })
+  }
+
+  // Prevent non-admin roles from being assigned to prevent privilege escalation
+  if (role !== 'user' && role !== 'merchant' && role !== 'accounting' && role !== 'admin') {
+    return NextResponse.json({ error: 'Invalid role assignment' }, { status: 400 })
   }
 
   const { error } = await adminClient

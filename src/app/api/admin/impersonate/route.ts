@@ -1,30 +1,35 @@
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
 
-export async function POST(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll() {
-          // API routes don't need to set cookies
-        },
-      },
-    }
-  )
+async function getAuthenticatedUser(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  const { data: { user: userData } } = await supabase.auth.getUser()
+  const authHeader = request.headers.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
 
-  if (!userData) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!bearerToken) {
+    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
+
+  const anonClient = createClient(url, anonKey)
+  const { data: { user }, error } = await anonClient.auth.getUser(bearerToken)
+
+  if (!user) {
+    if (error) {
+      return { errorResponse: NextResponse.json({ error: error.message }, { status: 401 }) }
+    }
+    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+
+  return { user }
+}
+
+export async function POST(request: NextRequest) {
+  const { user, errorResponse } = await getAuthenticatedUser(request)
+  if (errorResponse || !user) return errorResponse!
 
   const body = await request.json().catch(() => null)
   const targetUserId = body?.userId
@@ -42,13 +47,38 @@ export async function POST(request: NextRequest) {
   const { data: myProfile, error: profileError } = await adminClient
     .from('profiles')
     .select('role')
-    .eq('id', userData.id)
+    .eq('id', user.id)
     .single()
 
   if (profileError || myProfile?.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Admin API not available in @supabase/supabase-js@1.0.0
-  return NextResponse.json({ error: 'Admin impersonation not available with current Supabase version' }, { status: 501 })
+  if (user.id === targetUserId) {
+    return NextResponse.json({ error: 'Already using this account' }, { status: 400 })
+  }
+
+  const { data: targetUser, error: fetchTargetError } = await adminClient.auth.admin.getUserById(targetUserId)
+  if (fetchTargetError || !targetUser?.user?.email) {
+    return NextResponse.json({ error: fetchTargetError?.message ?? 'Target user not found' }, { status: 404 })
+  }
+
+  const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const redirectTo = `${origin.replace(/\/$/, '')}/auth/impersonate-callback`
+
+  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    type: 'magiclink',
+    email: targetUser.user.email,
+    options: {
+      redirectTo,
+    },
+  })
+
+  const actionLink = linkData?.properties?.action_link
+
+  if (linkError || !actionLink) {
+    return NextResponse.json({ error: linkError?.message ?? 'Failed to generate impersonation link' }, { status: 500 })
+  }
+
+  return NextResponse.json({ action_link: actionLink })
 }

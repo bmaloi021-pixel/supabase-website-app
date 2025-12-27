@@ -3103,6 +3103,7 @@ export default function Dashboard() {
         <div className="w-full px-4">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
+              {isAdmin && (
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(true)}
@@ -3116,6 +3117,7 @@ export default function Dashboard() {
                     <line x1="3" y1="18" x2="21" y2="18" />
                   </svg>
                 </button>
+              )}
               <div className="flex-shrink-0 flex items-center">
                 <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm mr-3">X</div>
                 <h1 className="text-xl font-bold text-white">Xhimer</h1>
@@ -3152,127 +3154,90 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className={`fixed inset-0 z-40 ${isMenuOpen ? '' : 'pointer-events-none'}`}>
-        <div
-          className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
-            isMenuOpen ? 'opacity-100' : 'opacity-0'
-          }`}
-          onClick={() => setIsMenuOpen(false)}
-        />
+      {isAdmin && (
+        <div className={`fixed inset-0 z-40 ${isMenuOpen ? '' : 'pointer-events-none'}`}>
+          <div
+            className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
+              isMenuOpen ? 'opacity-100' : 'opacity-0'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+          />
 
-        <div
-          className={`absolute inset-y-0 left-0 w-64 max-w-[85vw] bg-[#0f1a24] border-r border-[#1a2f3f] shadow-2xl transform transition-transform duration-300 flex flex-col ${
-            isMenuOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="flex items-center justify-between px-4 h-16 border-b border-[#1a2f3f]">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">X</div>
-              <span className="font-semibold text-white">Xhimer</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen(false)}
-              className="inline-flex items-center justify-center rounded-md p-2 text-[#7eb3b0] hover:bg-[#1a2f3f] focus:outline-none focus:ring-2 focus:ring-[#16a7a1]"
-              aria-label="Close navigation"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-1">
-            {isAdmin
-              ? adminNavItems.map((item) => {
-                  const isActive = activeAdminNav === item.key;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => handleAdminNavClick(item)}
-                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
-                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
-                      }`}
-                    >
-                      <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-xl ${
-                          isActive ? 'bg-white/15' : 'bg-white/5'
-                        }`}
-                      >
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </button>
-                  );
-                })
-              : navItems.map((item) => {
-                  const icons: Record<string, React.ReactNode> = {
-                    overview: (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                      </svg>
-                    ),
-                    referrals: (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    ),
-                    commissions: (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ),
-                    packages: (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
-                    ),
-                    users: (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                      </svg>
-                    ),
-                  };
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => selectTab(item.key)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        activeTab === item.key
-                          ? 'bg-[#1a2f3f] text-[#16a7a1]'
-                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
-                      }`}
-                    >
-                      {icons[item.key] ?? null}
-                      {item.label}
-                    </button>
-                  );
-                })}
-          </div>
-
-          <div className="p-4 border-t border-[#1a2f3f]">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-[#16a7a1] flex items-center justify-center text-white font-semibold">
-                {profile?.first_name?.[0]?.toUpperCase() ?? 'U'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{profile?.first_name ?? 'User'}</p>
-                <p className="text-xs text-[#7eb3b0] truncate">{profile?.role ?? 'user'}</p>
+          <div
+            className={`absolute inset-y-0 left-0 w-64 max-w-[85vw] bg-[#0f1a24] border-r border-[#1a2f3f] shadow-2xl transform transition-transform duration-300 flex flex-col ${
+              isMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+          >
+            <div className="flex items-center justify-between px-4 h-16 border-b border-[#1a2f3f]">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">X</div>
+                <span className="font-semibold text-white">Xhimer</span>
               </div>
               <button
                 type="button"
-                className="p-1.5 rounded-md text-[#7eb3b0] hover:bg-[#1a2f3f] hover:text-white"
-                aria-label="More options"
+                onClick={() => setIsMenuOpen(false)}
+                className="inline-flex items-center justify-center rounded-md p-2 text-[#7eb3b0] hover:bg-[#1a2f3f] focus:outline-none focus:ring-2 focus:ring-[#16a7a1]"
+                aria-label="Close navigation"
               >
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-1">
+              {adminNavItems.filter((item) => item.key !== 'settings').map((item) => {
+                const isActive = activeAdminNav === item.key;
+                const emojiMap: Record<string, string> = {
+                  'dashboard': '📊',
+                  'user-management': '👥',
+                  'merchants': '🏪',
+                  'accounting': '📈',
+                  'payment-methods': '💳',
+                  'cashflow': '💰',
+                  'commissions': '💵',
+                  'investment-plans': '📦',
+                };
+                const emoji = emojiMap[item.key] || '•';
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => handleAdminNavClick(item)}
+                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
+                        : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-lg">{emoji}</span>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="p-4 border-t border-[#1a2f3f]">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-[#16a7a1] flex items-center justify-center text-white font-semibold">
+                  {profile?.first_name?.[0]?.toUpperCase() ?? 'U'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{profile?.first_name ?? 'User'}</p>
+                  <p className="text-xs text-[#7eb3b0] truncate">{profile?.role ?? 'user'}</p>
+                </div>
+                <button
+                  type="button"
+                  className="p-1.5 rounded-md text-[#7eb3b0] hover:bg-[#1a2f3f] hover:text-white"
+                  aria-label="More options"
+                >
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">

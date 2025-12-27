@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<string | null>(null);
 
@@ -32,7 +32,12 @@ export default function Navbar() {
     };
 
     checkAuth();
-  }, [supabase.auth]);
+  }, [supabase]);
+
+  const shouldHideNavbar = pathname?.startsWith('/dashboard') || pathname?.startsWith('/admin');
+  if (shouldHideNavbar) {
+    return null;
+  }
 
   const handleSignOut = async () => {
     try {

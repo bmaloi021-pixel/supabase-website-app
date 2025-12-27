@@ -99,7 +99,7 @@ begin
   from public.packages
   where id = up.package_id;
 
-  amt := pkg.price;
+  amt := pkg.price + (pkg.price * coalesce(pkg.commission_rate, 0)::numeric / 100);
 
   update public.user_packages
   set withdrawn_at = timezone('utc'::text, now()),

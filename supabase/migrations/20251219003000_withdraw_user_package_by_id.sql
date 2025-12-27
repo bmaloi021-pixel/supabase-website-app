@@ -52,7 +52,7 @@ begin
     raise exception 'Package not found';
   end if;
 
-  amt := pkg.price;
+  amt := pkg.price + (pkg.price * coalesce(pkg.commission_rate, 0)::numeric / 100);
 
   select * into prof
   from public.profiles
