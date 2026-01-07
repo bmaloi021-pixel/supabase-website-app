@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -12,7 +12,7 @@ type TopUpHistoryEntry = {
   created_at: string;
 };
 
-export default function AdminTopUpsPage() {
+function AdminTopUpsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -190,5 +190,19 @@ export default function AdminTopUpsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminTopUpsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-[#050f15] via-[#071922] to-[#041017] flex items-center justify-center">
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
+      <AdminTopUpsPageInner />
+    </Suspense>
   );
 }

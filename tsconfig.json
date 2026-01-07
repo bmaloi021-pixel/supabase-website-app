@@ -30,5 +30,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dark-dashboard-backup.tsx",
+    "old-dashboard-utf8.tsx",
+    "old-dashboard.tsx"
+  ]
 }

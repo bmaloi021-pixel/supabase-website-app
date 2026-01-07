@@ -12,6 +12,8 @@ interface Profile {
   role?: 'admin' | 'user' | 'merchant' | 'accounting';
   referral_code?: string;
   balance?: number;
+  top_up_balance?: number;
+  withdrawable_balance?: number;
   updated_at?: string;
   referred_by_username?: string | null;
 }
@@ -146,6 +148,7 @@ export default function Dashboard() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showTopUpForm, setShowTopUpForm] = useState(false);
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [publicPaymentMethods, setPublicPaymentMethods] = useState<PublicPaymentMethod[]>([]);
   const [publicPaymentQrUrls, setPublicPaymentQrUrls] = useState<Record<string, string>>({});
   const [selectedPublicPaymentMethodId, setSelectedPublicPaymentMethodId] = useState<string | null>(null);
@@ -170,6 +173,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const showUsersFinancialColumns = usersRoleFilter !== 'all';
   const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
   const [pendingScrollTarget, setPendingScrollTarget] = useState<'packages' | 'commissions' | null>(null);
   const [isTopUpHistoryOpen, setIsTopUpHistoryOpen] = useState(false);
@@ -180,6 +185,10 @@ export default function Dashboard() {
   const [accountWithdrawals, setAccountWithdrawals] = useState<AccountWithdrawalEntry[]>([]);
   const [accountWithdrawalLoading, setAccountWithdrawalLoading] = useState(false);
   const [accountWithdrawalError, setAccountWithdrawalError] = useState<string | null>(null);
+  const [isBuyPackageModalOpen, setIsBuyPackageModalOpen] = useState(false);
+  const [packageToPurchase, setPackageToPurchase] = useState<Package | null>(null);
+  const [isPurchasingPackage, setIsPurchasingPackage] = useState(false);
+  const [buyPackageModalError, setBuyPackageModalError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const buyPackageInFlightRef = useRef(false);
@@ -415,6 +424,122 @@ export default function Dashboard() {
       </div>
     );
   };
+
+  const renderDepositModal = () => (
+    <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-3xl lg:max-w-5xl 2xl:max-w-6xl max-h-[85vh] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-[#1a2f3f] px-6 py-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-[#7eb3b0]/70">Deposit</p>
+          <h2 className="text-xl font-semibold text-white">Top up balance</h2>
+        </div>
+        <button
+          type="button"
+          onClick={closeDepositModal}
+          className="rounded-full border border-transparent p-2 text-white/70 hover:text-white hover:bg-white/10"
+          aria-label="Close deposit modal"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="px-6 py-5 text-[#cfe3e8] overflow-y-auto">
+        <form onSubmit={handleTopUp} className="space-y-4">
+          {publicPaymentMethods.length > 0 ? (
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+              <p className="text-sm font-semibold text-[#9fc3c1]">Payment method</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {publicPaymentMethods.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelectedPublicPaymentMethodId(m.id)}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      selectedPublicPaymentMethodId === m.id
+                        ? 'border-[#16a7a1] bg-[#132f40]'
+                        : 'border-[#1a2f3f] bg-[#0f1f2e] hover:border-[#16a7a1]/50'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            {(m.provider || (m.type === 'gcash' ? 'GCash' : m.type)) + (m.label ? ` - ${m.label}` : '')}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-[#1a2f3f] bg-[#091522] p-3 text-xs text-[#7eb3b0]">
+                          <p className="font-semibold text-[#9fc3c1]">Account Details</p>
+                          {m.type === 'gcash' ? (
+                            <>
+                              <p>Account Name: {m.account_name ?? '—'}</p>
+                              <p>Number: {m.phone ?? '—'}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p>Provider: {m.provider ?? '—'}</p>
+                              <p>Account Name: {m.account_name ?? '—'}</p>
+                              <p>Account Number: {m.account_number_last4 ? `•••• ${m.account_number_last4}` : '—'}</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {publicPaymentQrUrls[m.id] ? (
+                        <div className="flex w-full justify-center sm:w-auto">
+                          <img
+                            src={publicPaymentQrUrls[m.id]}
+                            alt="Payment QR"
+                            className="h-32 w-32 rounded-2xl border border-[#1a2f3f] object-cover"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 text-sm text-white/70">
+              No payment methods available.
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+            <label className="block text-sm font-semibold text-[#9fc3c1]">Amount</label>
+            <input
+              value={topUpAmount}
+              onChange={(e) => setTopUpAmount(e.target.value)}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Enter amount"
+              className="mt-2 w-full rounded-xl border border-[#1a2f3f] bg-[#091522] px-4 py-3 text-sm text-white outline-none focus:border-[#16a7a1]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onClick={closeDepositModal}
+              className="rounded-full border border-[#1a2f3f] px-5 py-2 text-sm font-semibold text-[#7eb3b0] hover:bg-[#132f40] transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isProcessingPayment || !selectedPublicPaymentMethodId}
+              className="rounded-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-6 py-2 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition disabled:opacity-50"
+            >
+              {isProcessingPayment ? 'Processing…' : 'Submit'}
+            </button>
+          </div>
+
+          {paymentError ? <p className="text-sm text-red-400">{paymentError}</p> : null}
+        </form>
+      </div>
+    </div>
+  );
 
   const refreshPackages = async () => {
     const { data: packageData, error: packageError } = await supabase
@@ -729,6 +854,11 @@ export default function Dashboard() {
         }
       } else if (profileData) {
         setProfile(profileData);
+
+        if ((profileData as any)?.role === 'admin') {
+          router.replace('/admin/overview');
+          return;
+        }
       }
 
       // First, check if we have a valid user ID
@@ -851,6 +981,23 @@ export default function Dashboard() {
 
       const availedRows = ((availedPackagesData ?? []) as any[]).filter((r) => !!r?.packages);
       setAvailedUserPackages(availedRows as any);
+
+      // For regular users: load account withdrawal requests so "Total Withdraw" reflects actual cash withdrawals
+      if ((profileData as any)?.role !== 'admin' && (profileData as any)?.role !== 'merchant' && (profileData as any)?.role !== 'accounting') {
+        try {
+          const { data: withdrawalRows, error: withdrawalError } = await supabase
+            .from('withdrawal_requests')
+            .select('id, amount, status, processed_at, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (!withdrawalError) {
+            setAccountWithdrawals((withdrawalRows ?? []) as any);
+          }
+        } catch (e) {
+          // ignore; history modal has its own fetch
+        }
+      }
 
       if (withdrawCandidateData && (withdrawCandidateData as any).packages) {
         setWithdrawCandidateRow(withdrawCandidateData as any);
@@ -1428,6 +1575,16 @@ export default function Dashboard() {
     },
   ];
 
+  // Sync admin nav with tab on initial load
+  useEffect(() => {
+    if (isAdmin && activeTab === 'overview') {
+      const matchingAdminNav = adminNavItems.find((item) => item.tab === activeTab);
+      if (matchingAdminNav && activeAdminNav !== matchingAdminNav.key) {
+        setActiveAdminNav(matchingAdminNav.key);
+      }
+    }
+  }, [isAdmin, activeTab, adminNavItems]);
+
   const selectTab = (tab: string) => {
     if (tab === 'users' && !isAdmin) return;
     setActiveTab(tab);
@@ -1463,6 +1620,177 @@ export default function Dashboard() {
   const closeTopUpHistory = () => setIsTopUpHistoryOpen(false);
   const closeWithdrawalHistory = () => setIsWithdrawalHistoryOpen(false);
   const closeAccountWithdrawalHistory = () => setIsAccountWithdrawalHistoryOpen(false);
+
+  const openDepositModal = () => {
+    setPaymentError(null);
+    setShowTopUpForm(true);
+    setIsDepositModalOpen(true);
+  };
+
+  const closeDepositModal = () => {
+    setIsDepositModalOpen(false);
+    setShowTopUpForm(false);
+    setPaymentError(null);
+  };
+
+  const openBuyPackagesModal = () => {
+    if (packages.length === 0) {
+      setBuyPackageModalError('No packages available for purchase.');
+      setIsBuyPackageModalOpen(true);
+      return;
+    }
+    setBuyPackageModalError(null);
+    setIsBuyPackageModalOpen(true);
+  };
+
+  const closeBuyPackageModal = () => {
+    setIsBuyPackageModalOpen(false);
+    setPackageToPurchase(null);
+    setIsPurchasingPackage(false);
+    setBuyPackageModalError(null);
+  };
+
+  const renderBuyPackageModal = () => {
+    const availablePackages = packages;
+    const selectedPackage =
+      packageToPurchase && availablePackages.some((pkg) => pkg.id === packageToPurchase.id)
+        ? packageToPurchase
+        : availablePackages[0] ?? null;
+
+    const spendableTopUp = Number((profile as any)?.top_up_balance ?? 0);
+    const spendableWithdrawable = Number((profile as any)?.withdrawable_balance ?? 0);
+    const totalSpendable = (Number.isFinite(spendableTopUp) ? spendableTopUp : 0) +
+      (Number.isFinite(spendableWithdrawable) ? spendableWithdrawable : 0);
+    const selectedPrice = Number(selectedPackage?.price ?? 0);
+    const hasEnoughForSelected = Number.isFinite(selectedPrice) ? totalSpendable >= selectedPrice : true;
+
+    return (
+      <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-3xl lg:max-w-5xl 2xl:max-w-6xl max-h-[85vh] overflow-hidden">
+        <div className="flex items-center justify-between border-b border-[#1a2f3f] px-6 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#7eb3b0]/70">Purchase Package</p>
+            <h2 className="text-xl font-semibold text-white">Choose a package</h2>
+          </div>
+          <button
+            type="button"
+            onClick={closeBuyPackageModal}
+            className="rounded-full border border-transparent p-2 text-white/70 hover:text-white hover:bg-white/10"
+            aria-label="Close purchase modal"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5 text-[#cfe3e8] overflow-y-auto">
+          {availablePackages.length === 0 ? (
+            <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 text-center text-sm text-white/70">
+              No packages are available for purchase right now. Please check back later.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {availablePackages.map((option) => {
+                  const selected = selectedPackage?.id === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        setPackageToPurchase(option);
+                        setBuyPackageModalError(null);
+                      }}
+                      className={`rounded-2xl border ${selected ? 'border-[#16a7a1]' : 'border-[#1a2f3f]'} bg-[#0b1721] p-4 text-left transition hover:border-[#16a7a1]`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-white">{option.name}</p>
+                        {selected ? (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#16a7a1]">
+                            <svg viewBox="0 0 24 24" className="h-3 w-3 text-white" fill="none" stroke="currentColor" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-2xl font-semibold text-[#16a7a1]">{formatCurrency(option.price)}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedPackage ? (
+                <>
+                  <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+                    <p className="text-sm text-white/70">Investment amount</p>
+                    <p className="mt-1 text-3xl font-semibold text-white">{formatCurrency(selectedPackage.price)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+                    <p className="text-sm text-white/70">Available funds</p>
+                    <p className="mt-1 text-xl font-semibold text-white">{formatCurrency(totalSpendable)}</p>
+                    <p className="mt-1 text-xs text-white/50">Top-up + withdrawable earnings. Top-up is not withdrawable.</p>
+                    {!hasEnoughForSelected ? (
+                      <p className="mt-2 text-sm text-red-400">Insufficient balance to buy this package.</p>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+                      <p className="text-xs text-white/60">Commission Rate</p>
+                      <p className="mt-1 text-xl font-semibold text-[#16a7a1]">{selectedPackage.commission_rate}%</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+                      <p className="text-xs text-white/60">Level</p>
+                      <p className="mt-1 text-xl font-semibold text-white">{selectedPackage.level}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/70">{selectedPackage.description}</p>
+                </>
+              ) : null}
+            </>
+          )}
+
+          {buyPackageModalError ? <p className="text-sm text-red-400">{buyPackageModalError}</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={closeBuyPackageModal}
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/5 sm:w-auto"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isPurchasingPackage || !selectedPackage || !hasEnoughForSelected}
+            onClick={() => {
+              if (!selectedPackage) return;
+              setBuyPackageModalError(null);
+              setIsPurchasingPackage(true);
+              handleActivatePackage(selectedPackage)
+                .then(() => {
+                  setIsPurchasingPackage(false);
+                  closeBuyPackageModal();
+                })
+                .catch((error) => {
+                  const msg = String((error as any)?.message ?? 'Failed to buy package');
+                  if (/insufficient\s+balance/i.test(msg)) {
+                    setBuyPackageModalError('Insufficient balance to buy this package.');
+                  } else {
+                    setBuyPackageModalError(msg);
+                  }
+                  setIsPurchasingPackage(false);
+                });
+            }}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-5 py-3 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 disabled:opacity-50 sm:w-auto"
+          >
+            {isPurchasingPackage ? 'Processing...' : 'Confirm Purchase'}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const handleAdminNavClick = (item: (typeof adminNavItems)[number]) => {
     setActiveAdminNav(item.key);
@@ -2038,6 +2366,188 @@ export default function Dashboard() {
     </div>
   );
 
+  const renderUserHeroHeader = () => (
+    <div className="relative overflow-hidden rounded-[32px] border border-[#1a2f3f] bg-[#0f1f2e] p-8 text-white shadow-lg">
+      <div className="absolute inset-0">
+        <div className="absolute -top-20 -left-16 h-64 w-64 rounded-full bg-[#16a7a1]/10 blur-[90px]" />
+        <div className="absolute top-10 right-0 h-52 w-52 rounded-full bg-[#1ed3c2]/10 blur-[120px]" />
+      </div>
+      <div className="relative">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Welcome back, <span className="text-[#16a7a1]">@{profile?.username ?? 'user'}</span>!
+        </h1>
+        <p className="mt-2 text-sm text-white/70">
+          Manage your investments, track earnings, and grow your portfolio
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderUserReferralCard = () => {
+    const referralLink = profile?.referral_code
+      ? `${window.location.origin}/signup?ref=${profile.referral_code}`
+      : '';
+
+    return (
+      <div className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-6 text-white shadow-lg">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#133247] text-[#16a7a1]">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 00-3-3.87" />
+              <path d="M16 3.13a4 4 0 010 7.75" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Referral Link</p>
+            <p className="mt-1 text-xs text-[#7eb3b0]">Share your link to earn commissions</p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="break-all font-mono text-xs text-[#9fc3c1]">
+            {referralLink || 'Referral link unavailable (missing referral_code)'}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!referralLink) return;
+              try {
+                await navigator.clipboard.writeText(referralLink);
+                setHasCopiedReferralLink(true);
+                setTimeout(() => setHasCopiedReferralLink(false), 2000);
+              } catch (e) {
+                logError('CopyReferralLinkError', e);
+              }
+            }}
+            disabled={!referralLink}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-5 py-2 text-sm font-semibold text-[#062226] shadow-md transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+            {hasCopiedReferralLink ? 'Copied!' : 'Copy Link'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUserReferredByCard = () => {
+    if (!profile?.referred_by_username) return null;
+
+    return (
+      <div className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-6 text-white shadow-lg">
+        <p className="text-sm font-semibold">Referred By</p>
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#133247] text-[#16a7a1]">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white">{profile.referred_by_username}</p>
+            <p className="text-xs text-[#7eb3b0]">@{profile.referred_by_username}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUserMetricsRow = () => {
+    const totalWithdraw = accountWithdrawals
+      .filter((w) => w.status === 'approved' || w.status === 'processing')
+      .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+    const topUpBalance = Number((profile as any)?.top_up_balance ?? 0);
+    const withdrawableBalance = Number((profile as any)?.withdrawable_balance ?? 0);
+    const packageIncome = availedUserPackages
+      .filter((up) => !!up.withdrawn_at)
+      .reduce((sum, up) => {
+        const price = Number((up as any)?.packages?.price ?? 0);
+        const rate = Number((up as any)?.packages?.commission_rate ?? 0);
+        if (!Number.isFinite(price)) return sum;
+        const pct = Number.isFinite(rate) ? rate : 0;
+        return sum + (price + (price * pct) / 100);
+      }, 0);
+
+    const items = [
+      {
+        key: 'total_withdraw',
+        label: 'TOTAL WITHDRAW',
+        value: formatCurrency(totalWithdraw),
+        description: 'Total amount withdrawn',
+        iconBg: 'bg-[#133247]',
+        icon: (
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2v20" />
+            <path d="M19 9l-7-7-7 7" />
+          </svg>
+        ),
+      },
+      {
+        key: 'top_up_balance',
+        label: 'TOP-UP BALANCE',
+        value: formatCurrency(Number.isFinite(topUpBalance) ? topUpBalance : 0),
+        description: 'Spendable (auto-deducted on package purchase). Not withdrawable.',
+        iconBg: 'bg-[#133247]',
+        icon: (
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 1v22" />
+            <path d="M17 5H9.5a3.5 3.5 0 000 7H14a3 3 0 010 6H6" />
+          </svg>
+        ),
+      },
+      {
+        key: 'withdrawable_balance',
+        label: 'WITHDRAWABLE',
+        value: formatCurrency(Number.isFinite(withdrawableBalance) ? withdrawableBalance : 0),
+        description: 'Earnings from commissions + package income. Withdrawals come from this only.',
+        iconBg: 'bg-[#133247]',
+        icon: (
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2v20" />
+            <path d="M7 7l5-5 5 5" />
+            <path d="M7 17l5 5 5-5" />
+          </svg>
+        ),
+      },
+      {
+        key: 'package_income',
+        label: 'TOTAL CLAIMED (GROSS)',
+        value: formatCurrency(packageIncome),
+        description: 'Historical claimed returns (before withdrawals/spending)',
+        iconBg: 'bg-[#133247]',
+        icon: (
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+          </svg>
+        ),
+      },
+    ] as const;
+
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.key} className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-5 text-white shadow-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/50">{item.label}</p>
+                <p className="mt-3 text-2xl font-semibold">{item.value}</p>
+                <p className="mt-2 text-xs text-white/60">{item.description}</p>
+              </div>
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${item.iconBg} text-[#16a7a1]`}>
+                {item.icon}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderOverviewFilter = () => (
     <div className="grid gap-4 rounded-3xl border border-white/5 bg-[#0b1633] p-6 shadow-[0_25px_60px_rgba(4,9,24,0.65)] md:grid-cols-[auto,1fr,auto] md:items-center">
       <div className="flex items-center gap-3 text-white/80">
@@ -2348,22 +2858,58 @@ export default function Dashboard() {
     })()
   );
 
-  const renderInvestments = () => (
-    <SectionCard
-      title="My Investments"
-      subtitle="Track progress, returns, and claim when ready."
-      accent="blue"
-    >
-      {availedUserPackages.filter((up) => !up?.withdrawn_at).length === 0 ? (
-        <div className="rounded-2xl border border-[#1a2f3f] bg-[#0d2131] p-6 text-center text-[#6a8f99]">
-          No active investments yet.
+  const renderInvestments = () => {
+    const activeInvestments = availedUserPackages.filter((up) => !up?.withdrawn_at);
+    const totalInvested = activeInvestments.reduce((sum, up) => sum + Number((up as any)?.packages?.price ?? 0), 0);
+    const totalReturn = activeInvestments.reduce((sum, up) => sum + (Number((up as any)?.packages?.price ?? 0) * 0.2), 0);
+    const completedInvestments = availedUserPackages.filter((up) => !!up?.withdrawn_at).length;
+
+    const StatPill = ({ label, value, tone }: { label: string; value: string; tone: 'gold' | 'teal' | 'blue' | 'violet' }) => {
+      const toneMap: Record<typeof tone, string> = {
+        gold: 'border-[#3b2f17] text-[#f3cc84]',
+        teal: 'border-[#14322e] text-[#16a7a1]',
+        blue: 'border-[#173049] text-[#7bb8ff]',
+        violet: 'border-[#2a1f47] text-[#c3a6ff]',
+      };
+      return (
+        <div className={`rounded-xl border ${toneMap[tone]} bg-[#0b1721] px-4 py-3`}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/50">{label}</p>
+          <p className="mt-1 text-sm font-semibold">{value}</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {availedUserPackages
-            .filter((up) => !up?.withdrawn_at)
-            .map((up) => (
-              <div key={up.id} className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-5 text-white shadow-inner shadow-black/20">
+      );
+    };
+
+    return (
+      <div className="rounded-2xl border border-[#1a2f3f] bg-[#0f1f2e] p-6 text-white shadow-lg">
+        <div className="flex flex-col gap-4 border-b border-[#1a2f3f] pb-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-white">My Investments</h3>
+            <p className="mt-1 text-sm text-[#7eb3b0]">Track progress, returns, and claim when ready.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+            <StatPill label="INVESTED" value={formatCurrency(totalInvested)} tone="gold" />
+            <StatPill label="TOTAL RETURN" value={formatCurrency(totalReturn)} tone="teal" />
+            <StatPill label="ACTIVE" value={formatNumber(activeInvestments.length)} tone="blue" />
+            <StatPill label="COMPLETED" value={formatNumber(completedInvestments)} tone="violet" />
+          </div>
+        </div>
+
+        {activeInvestments.length === 0 ? (
+          <div className="mt-6 flex min-h-[240px] flex-col items-center justify-center rounded-2xl border border-[#1a2f3f] bg-[#0b1721] px-6 py-10 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-white/30">
+              <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M3 7l9-4 9 4" />
+                <path d="M3 7v10l9 4 9-4V7" />
+                <path d="M12 3v18" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-white/80">No active investments yet.</p>
+            <p className="mt-2 text-xs text-white/50">Click "Buy Packages" to start investing!</p>
+          </div>
+        ) : (
+          <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {activeInvestments.map((up) => (
+              <div key={up.id} className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-5 text-white">
                 <div className="mb-4 flex items-center justify-between text-sm text-[#9fc3c1]">
                   <div className="rounded-full bg-[#133247] px-3 py-1 text-xs font-semibold text-[#16a7a1]">
                     {up.packages?.name ?? up.package_id}
@@ -2373,21 +2919,23 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-4 text-sm text-[#9fc3c1]">
                   <div>
                     <p>Invested</p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {formatCurrency((up as any)?.packages?.price)}
-                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">{formatCurrency((up as any)?.packages?.price)}</p>
                   </div>
                   <div>
                     <p>Expected</p>
                     <p className="mt-1 text-lg font-semibold text-[#f3cc84]">
-                      {formatCurrency((up as any)?.packages?.price * 1.2)}
+                      {(() => {
+                        const price = Number((up as any)?.packages?.price ?? 0);
+                        const rate = Number((up as any)?.packages?.commission_rate ?? 0);
+                        const pct = Number.isFinite(rate) ? rate : 0;
+                        const expected = Number.isFinite(price) ? price + (price * pct) / 100 : 0;
+                        return formatCurrency(expected);
+                      })()}
                     </p>
                   </div>
                   <div>
                     <p>Rate</p>
-                    <p className="mt-1 font-semibold text-[#16a7a1]">
-                      {(up as any)?.packages?.commission_rate ?? 20}%
-                    </p>
+                    <p className="mt-1 font-semibold text-[#16a7a1]">{(up as any)?.packages?.commission_rate ?? 20}%</p>
                   </div>
                   <div>
                     <p>Progress</p>
@@ -2404,30 +2952,31 @@ export default function Dashboard() {
                     Withdraw
                   </button>
                 ) : (
-                  <div className="mt-4 rounded-xl border border-[#1a2f3f] bg-[#0b1721] px-4 py-2 text-center text-xs text-[#637d86]">
+                  <div className="mt-4 rounded-xl border border-[#1a2f3f] bg-[#0f1f2e] px-4 py-2 text-center text-xs text-[#637d86]">
                     Awaiting maturity
                   </div>
                 )}
               </div>
             ))}
-        </div>
-      )}
-    </SectionCard>
-  );
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderActionsRow = () => (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
       <SectionCard title="Deposit" accent="green">
         <div className="grid gap-3">
           <button
-            onClick={() => setShowTopUpForm(true)}
+            onClick={openDepositModal}
             className="rounded-xl bg-gradient-to-r from-[#d4b673] to-[#f2c572] py-3 text-center text-sm font-semibold text-[#1a1a1a] shadow-md hover:opacity-90 transition"
           >
             Deposit
           </button>
           <button
             type="button"
-            onClick={focusPackagesSection}
+            onClick={openBuyPackagesModal}
             className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition"
           >
             Buy Packages
@@ -2444,8 +2993,12 @@ export default function Dashboard() {
 
       <SectionCard title="Withdrawal" accent="blue">
         <div className="grid gap-3">
-          <button className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition">
-            Withdraw (₱0.00)
+          <button
+            type="button"
+            disabled={Number((profile as any)?.withdrawable_balance ?? 0) <= 0}
+            className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Withdraw ({formatCurrency(Number((profile as any)?.withdrawable_balance ?? 0))})
           </button>
           <button
             type="button"
@@ -2579,15 +3132,41 @@ export default function Dashboard() {
 
   const renderAccountBalanceCard = () => (
     <SectionCard title="Account Balance" accent="green">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-white/60">Available balance</p>
-          <p className="text-3xl font-bold text-white">{formatCurrency(profile?.balance || 0)}</p>
+      {profile?.role && ['admin', 'merchant', 'accounting'].includes(profile.role) ? (
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-white/60">Available balance</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(profile?.balance || 0)}</p>
+          </div>
+          <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70">
+            Last updated {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '—'}
+          </div>
         </div>
-        <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70">
-          Last updated {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '—'}
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-white/60">Total balance</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(profile?.balance || 0)}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/60">Top-up (Spendable)</p>
+              <p className="mt-2 text-xl font-semibold text-white">{formatCurrency((profile as any)?.top_up_balance ?? 0)}</p>
+              <p className="mt-1 text-xs text-white/50">Used automatically when buying packages. Not withdrawable.</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/60">Withdrawable (Earnings)</p>
+              <p className="mt-2 text-xl font-semibold text-white">{formatCurrency((profile as any)?.withdrawable_balance ?? 0)}</p>
+              <p className="mt-1 text-xs text-white/50">Commissions + package income. Withdrawals come from this only.</p>
+            </div>
+          </div>
+
+          <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 w-fit">
+            Last updated {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '—'}
+          </div>
         </div>
-      </div>
+      )}
     </SectionCard>
   );
 
@@ -2601,9 +3180,10 @@ export default function Dashboard() {
 
   const renderUserOverview = () => (
     <div className="space-y-6">
-      {renderReferralLink()}
-      {renderAccountBalanceCard()}
-      {renderTopUpCard()}
+      {renderUserHeroHeader()}
+      {renderUserReferralCard()}
+      {renderUserReferredByCard()}
+      {renderUserMetricsRow()}
       {renderInvestments()}
       {renderActionsRow()}
     </div>
@@ -2663,76 +3243,86 @@ export default function Dashboard() {
         <div className="px-6 py-8 text-center text-sm text-[#6a8f99]">Loading users…</div>
       ) : (
         (() => {
-          const filteredUsers = usersRoleFilter === 'all' ? usersList : usersList.filter((u) => u.role === usersRoleFilter);
+          const filteredUsers =
+            usersRoleFilter === 'all' ? usersList : usersList.filter((u) => u.role === usersRoleFilter);
+
           return (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#1a2f3f]">
-            <thead className="bg-[#0b1721]">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Balance</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Total Earnings</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Action</th>
-              </tr>
-            </thead>
-            <tbody className="bg-[#0f1f2e] divide-y divide-[#1a2f3f]">
-              {filteredUsers.map((u) => {
-                const isSelf = u.id === user?.id;
-                const isBusy = userRoleSavingId === u.id;
-                const isViewing = impersonateLoadingId === u.id;
-                return (
-                  <tr key={u.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                      {u.first_name} {u.last_name}{isSelf ? ' (you)' : ''}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">{u.username}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatCurrency((u as any)?.balance ?? 0)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatCurrency((u as any)?.total_earnings ?? 0)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        className="border border-[#1a2f3f] rounded-md px-3 py-2 text-sm text-white bg-[#091522] focus:outline-none focus:ring-2 focus:ring-[#16a7a1] focus:border-[#16a7a1] disabled:opacity-60"
-                        value={u.role}
-                        onChange={(e) => {
-                          const nextRole = e.target.value as Role;
-                          const prevRole = u.role;
-                          setUsersList((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: nextRole } : x)));
-                          if (isSelf) {
-                            setProfile((p) => (p ? ({ ...p, role: nextRole } as any) : p));
-                          }
-                          updateUserRole(u.id, nextRole, prevRole);
-                        }}
-                        disabled={isBusy}
-                      >
-                        <option value="user">User</option>
-                        <option value="merchant">Merchant</option>
-                        <option value="accounting">Accounting</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        {!isSelf && (
-                          <button
-                            onClick={() => handleImpersonate(u.id)}
-                            disabled={isViewing}
-                            className="inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#7eb3b0] bg-[#0f1f2e] hover:bg-[#132f40] disabled:opacity-50"
-                          >
-                            {isViewing ? 'Opening…' : 'View'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-[#1a2f3f]">
+                <thead className="bg-[#0f2835]">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Username</th>
+                    {showUsersFinancialColumns ? (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Balance</th>
+                    ) : null}
+                    {showUsersFinancialColumns ? (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Total Earnings</th>
+                    ) : null}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Action</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filteredUsers.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-[#6a8f99]">No users found.</div>
-          )}
-        </div>
+                </thead>
+                <tbody className="bg-[#0f1f2e] divide-y divide-[#1a2f3f]">
+                  {filteredUsers.map((u: any) => {
+                    const isSelf = u?.id === profile?.id;
+                    const isBusy = userRoleSavingId === u?.id;
+                    const isViewing = impersonateLoadingId === u?.id;
+
+                    return (
+                      <tr key={u.id} className="hover:bg-white/5 transition">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                          {u.first_name} {u.last_name} {isSelf ? '(you)' : ''}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-[#7eb3b0]">{u.username}</td>
+                        {showUsersFinancialColumns ? (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                            {formatCurrency((u as any)?.balance ?? 0)}
+                          </td>
+                        ) : null}
+                        {showUsersFinancialColumns ? (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                            {formatCurrency((u as any)?.total_earnings ?? 0)}
+                          </td>
+                        ) : null}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            className="border border-[#1a2f3f] rounded-md px-3 py-2 text-sm text-white bg-[#091522] focus:outline-none focus:ring-2 focus:ring-[#16a7a1] focus:border-[#16a7a1] disabled:opacity-60"
+                            value={u.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value as Role;
+                              await updateUserRole(u.id, newRole, u.role);
+                            }}
+                            disabled={isBusy}
+                          >
+                            <option value="user">User</option>
+                            <option value="merchant">Merchant</option>
+                            <option value="accounting">Accounting</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {!isSelf && (
+                              <button
+                                onClick={() => handleImpersonate(u.id)}
+                                disabled={isViewing}
+                                className="inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#7eb3b0] bg-[#0f1f2e] hover:bg-[#132f40] disabled:opacity-50"
+                              >
+                                {isViewing ? 'Opening…' : 'View'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {filteredUsers.length === 0 && (
+                <div className="px-6 py-8 text-center text-sm text-[#6a8f99]">No users found.</div>
+              )}
+            </div>
           );
         })()
       )}
@@ -3187,34 +3777,54 @@ export default function Dashboard() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-1">
-              {adminNavItems.filter((item) => item.key !== 'settings').map((item) => {
-                const isActive = activeAdminNav === item.key;
-                const emojiMap: Record<string, string> = {
-                  'dashboard': '📊',
-                  'user-management': '👥',
-                  'merchants': '🏪',
-                  'accounting': '📈',
-                  'payment-methods': '💳',
-                  'cashflow': '💰',
-                  'commissions': '💵',
-                  'investment-plans': '📦',
-                };
-                const emoji = emojiMap[item.key] || '•';
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => handleAdminNavClick(item)}
-                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
-                        : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
-                    }`}
-                  >
-                    <span className="text-lg">{emoji}</span>
-                    {item.label}
-                  </button>
-                );
-              })}
+              {isAdmin ? (
+                adminNavItems.filter((item) => item.key !== 'settings').map((item) => {
+                  const isActive = activeAdminNav === item.key;
+                  const emojiMap: Record<string, string> = {
+                    'dashboard': '📊',
+                    'user-management': '👥',
+                    'merchants': '🏪',
+                    'accounting': '📈',
+                    'payment-methods': '💳',
+                    'cashflow': '💰',
+                    'commissions': '💵',
+                    'investment-plans': '📦',
+                  };
+                  const emoji = emojiMap[item.key] || '•';
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => handleAdminNavClick(item)}
+                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
+                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-lg">{emoji}</span>
+                      {item.label}
+                    </button>
+                  );
+                })
+              ) : (
+                navItems.map((item) => {
+                  const isActive = activeTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => selectTab(item.key)}
+                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#5b4dff] to-[#8b77ff] text-white shadow-lg shadow-[#5b4dff]/40'
+                          : 'text-[#7eb3b0] hover:bg-[#1a2f3f]/60 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-lg">•</span>
+                      {item.label}
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             <div className="p-4 border-t border-[#1a2f3f]">
@@ -3247,8 +3857,6 @@ export default function Dashboard() {
             {activeTab === 'commissions' && <div ref={commissionsSectionRef}>{renderCommissions()}</div>}
             {activeTab === 'packages' && (
               <div ref={packagesSectionRef}>
-                {userPackageRow && renderAccountBalanceCard()}
-                {userPackageRow && renderTopUpCard()}
                 {renderPackages()}
               </div>
             )}
@@ -3273,6 +3881,18 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
           <div className="absolute inset-0 bg-black/50" onClick={closeAccountWithdrawalHistory} aria-hidden="true" />
           <div className="relative z-10">{renderAccountWithdrawalHistoryModal()}</div>
+        </div>
+      ) : null}
+      {isBuyPackageModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeBuyPackageModal} aria-hidden="true" />
+          <div className="relative z-10">{renderBuyPackageModal()}</div>
+        </div>
+      ) : null}
+      {isDepositModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeDepositModal} aria-hidden="true" />
+          <div className="relative z-10">{renderDepositModal()}</div>
         </div>
       ) : null}
     </div>

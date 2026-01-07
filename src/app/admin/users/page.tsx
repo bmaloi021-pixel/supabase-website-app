@@ -28,6 +28,8 @@ export default function AdminUsersPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
 
+  const showFinancialColumns = roleFilter !== 'all';
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
@@ -44,11 +46,11 @@ export default function AdminUsersPage() {
         return;
       }
 
-      const { data: profileData } = await supabase
+      const { data: profileData } = (await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single();
+        .single()) as { data: { role: Role } & Record<string, any> | null };
 
       if (!profileData || profileData.role !== 'admin') {
         router.push('/dashboard');
@@ -170,8 +172,12 @@ export default function AdminUsersPage() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Name</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Username</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Balance</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Total Earnings</th>
+                    {showFinancialColumns ? (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Balance</th>
+                    ) : null}
+                    {showFinancialColumns ? (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Total Earnings</th>
+                    ) : null}
                     <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Role</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-[#7eb3b0] uppercase tracking-wider">Joined</th>
                   </tr>
@@ -185,12 +191,16 @@ export default function AdminUsersPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#9fc3c1]">
                         @{user.username}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                        {formatCurrency(user.balance || 0)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                        {formatCurrency(user.total_earnings || 0)}
-                      </td>
+                      {showFinancialColumns ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                          {formatCurrency(user.balance || 0)}
+                        </td>
+                      ) : null}
+                      {showFinancialColumns ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                          {formatCurrency(user.total_earnings || 0)}
+                        </td>
+                      ) : null}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <select
                           value={user.role}

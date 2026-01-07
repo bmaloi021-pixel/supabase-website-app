@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 
+type Role = 'admin' | 'user' | 'merchant' | 'accounting';
+
 type CashflowEntry = {
   id: string;
   user_id: string | null;
@@ -42,11 +44,11 @@ export default function AdminCashflowPage() {
         return;
       }
 
-      const { data: profileData } = await supabase
+      const { data: profileData } = (await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
-        .single();
+        .single()) as { data: { role: Role } | null };
 
       if (!profileData || profileData.role !== 'admin') {
         router.push('/dashboard');

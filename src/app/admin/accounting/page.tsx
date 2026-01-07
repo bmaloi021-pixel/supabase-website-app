@@ -43,11 +43,11 @@ export default function AdminAccountingPage() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile } = (await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
-        .single();
+        .single()) as { data: { role: Role } | null };
 
       if (!profile || profile.role !== 'admin') {
         router.push('/dashboard');

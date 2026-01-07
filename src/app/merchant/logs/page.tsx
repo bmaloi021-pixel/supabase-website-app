@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import MerchantLayout from '@/components/merchant/MerchantLayout'
 
 type AuditLogEntry = {
   id: string
@@ -147,27 +148,25 @@ export default function MerchantAuditLogsPage() {
   }, [loadLogs])
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-6xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    <MerchantLayout>
+      <div className="px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
           <div>
-            <p className="text-sm text-gray-600">Merchant Tools</p>
-            <h1 className="text-3xl font-bold text-gray-900">Top-up Audit Logs</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Full history of approved and rejected top-up requests.
-            </p>
+            <p className="text-sm text-slate-300/80">Merchant Tools</p>
+            <h1 className="text-3xl font-semibold text-white">Top-up Audit Logs</h1>
+            <p className="mt-1 text-sm text-white/60">Full history of approved and rejected top-up requests.</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/merchant/portal"
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#183149] bg-[#081626] text-slate-200 hover:bg-[#12314a] transition"
             >
               Back to dashboard
             </Link>
             <button
               type="button"
               onClick={loadLogs}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-indigo-600 rounded-md shadow-sm hover:bg-indigo-700 disabled:opacity-60"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 transition disabled:opacity-60"
               disabled={loading}
             >
               {loading ? 'Refreshing…' : 'Reload'}
@@ -175,94 +174,88 @@ export default function MerchantAuditLogsPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="rounded-3xl border border-[#183149] bg-[#0b1a2a] p-4 sm:p-6 shadow-2xl text-white">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Filter:</span>
+              <span className="text-sm font-semibold text-white/70">Filter:</span>
               {(['all', 'approved', 'rejected'] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => setFilter(option)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium border ${
+                  className={`px-3 py-1 rounded-full text-sm font-semibold border transition ${
                     filter === option
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                      ? 'bg-blue-500/15 text-white border-blue-500/30'
+                      : 'bg-[#081626] text-slate-200 border-[#183149] hover:bg-[#12314a]'
                   }`}
                 >
-                  {option === 'all'
-                    ? 'All'
-                    : option === 'approved'
-                      ? 'Approved'
-                      : 'Rejected'}
+                  {option === 'all' ? 'All' : option === 'approved' ? 'Approved' : 'Rejected'}
                 </button>
               ))}
             </div>
-            <p className="text-sm text-gray-500">
-              Showing {filteredLogs.length} of {logs.length} records
-            </p>
+            <p className="text-sm text-white/50">Showing {filteredLogs.length} of {logs.length} records</p>
           </div>
 
-          {error ? <div className="mt-4 text-sm text-red-600">{error}</div> : null}
+          {error ? <div className="mt-4 text-sm text-red-400">{error}</div> : null}
 
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-[#183149]">
+              <thead className="bg-[#081626]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     Processed At
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     Processed By
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase tracking-wider">
                     Payment Method
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-[#183149]">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-white/50">
                       Loading logs…
                     </td>
                   </tr>
                 ) : filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-white/50">
                       No audit entries for this filter.
                     </td>
                   </tr>
                 ) : (
                   filteredLogs.map((log) => (
                     <tr key={log.id}>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-white">
                         <div className="font-medium">
                           {log.user_username ?? log.user_name ?? 'Unknown user'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">₱{Number(log.amount).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm text-white">₱{Number(log.amount).toLocaleString()}</td>
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
                             log.status === 'approved'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-blue-500/15 text-blue-200'
+                              : 'bg-red-500/20 text-red-300'
                           }`}
                         >
                           {log.status.toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-white">
                         {new Date(log.processed_at ?? log.created_at).toLocaleString(undefined, {
                           year: 'numeric',
                           month: '2-digit',
@@ -271,10 +264,10 @@ export default function MerchantAuditLogsPage() {
                           minute: '2-digit',
                         })}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-white">
                         {log.merchant_name ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
+                      <td className="px-4 py-3 text-sm text-slate-300/80">
                         {describePaymentMethod(log.status_notes)}
                       </td>
                     </tr>
@@ -285,6 +278,6 @@ export default function MerchantAuditLogsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </MerchantLayout>
   )
 }

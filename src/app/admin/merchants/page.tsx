@@ -34,11 +34,11 @@ export default function AdminMerchantsPage() {
         return;
       }
 
-      const { data: profileData } = await supabase
+      const { data: profileData } = (await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
-        .single();
+        .single()) as { data: { role: Role } | null };
 
       if (!profileData || profileData.role !== 'admin') {
         router.push('/dashboard');

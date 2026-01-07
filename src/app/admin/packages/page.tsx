@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 
+type Role = 'admin' | 'user' | 'merchant' | 'accounting';
+
 type PackageRow = {
   id: string;
   name: string;
@@ -51,11 +53,11 @@ export default function AdminPackagesPage() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile } = (await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
-        .single();
+        .single()) as { data: { role: Role } | null };
 
       if (!profile || profile.role !== 'admin') {
         router.push('/dashboard');

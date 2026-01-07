@@ -34,7 +34,11 @@ export default function Navbar() {
     checkAuth();
   }, [supabase]);
 
-  const shouldHideNavbar = pathname?.startsWith('/dashboard') || pathname?.startsWith('/admin');
+  const shouldHideNavbar =
+    pathname?.startsWith('/dashboard') ||
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/merchant') ||
+    pathname?.startsWith('/accounting');
   if (shouldHideNavbar) {
     return null;
   }

@@ -4,9 +4,9 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createAccountingClient } from '@/lib/supabase/client'
 
-function MerchantLoginForm() {
+function AccountingLoginForm() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -15,18 +15,18 @@ function MerchantLoginForm() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createAccountingClient(), [])
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase()
   const trimUsername = (value: string) => value.trim()
 
-  const rawNextPath = searchParams.get('next') || '/merchant/portal'
-  const nextPath = rawNextPath === '/merchant' ? '/merchant/portal' : rawNextPath
+  const rawNextPath = searchParams.get('next') || '/accounting/dashboard'
+  const nextPath = rawNextPath === '/accounting' ? '/accounting/dashboard' : rawNextPath
 
   useEffect(() => {
     const forceReauth = async () => {
       try {
-        sessionStorage.removeItem('merchant_auth')
+        sessionStorage.removeItem('accounting_auth')
       } catch {}
 
       await supabase.auth.signOut()
@@ -37,10 +37,7 @@ function MerchantLoginForm() {
 
   const signInWithUsername = async (value: string) => {
     const candidates = Array.from(
-      new Set([
-        `${normalizeUsername(value)}@users.firststeps.app`,
-        `${trimUsername(value)}@users.firststeps.app`,
-      ])
+      new Set([`${normalizeUsername(value)}@users.firststeps.app`, `${trimUsername(value)}@users.firststeps.app`])
     ).filter((v) => v && !v.startsWith('@'))
 
     let lastError: any = null
@@ -64,8 +61,29 @@ function MerchantLoginForm() {
     try {
       await signInWithUsername(username)
 
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData?.user?.id
+
+      if (!userId) {
+        throw new Error('Unable to validate session')
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single()
+
+      if (profileError) throw profileError
+
+      const role = (profileData as any)?.role
+      if (role !== 'admin' && role !== 'accounting') {
+        await supabase.auth.signOut()
+        throw new Error('Only admin and accounting accounts can access this portal.')
+      }
+
       try {
-        sessionStorage.setItem('merchant_auth', '1')
+        sessionStorage.setItem('accounting_auth', '1')
       } catch {}
 
       router.push(nextPath)
@@ -73,10 +91,7 @@ function MerchantLoginForm() {
     } catch (err) {
       const e = err as any
       const message =
-        e?.message ||
-        e?.error_description ||
-        (typeof e === 'string' ? e : null) ||
-        'An error occurred'
+        e?.message || e?.error_description || (typeof e === 'string' ? e : null) || 'An error occurred'
       const code = e?.code ? ` (${e.code})` : ''
       const status = e?.status ? ` [${e.status}]` : ''
       setError(`${message}${code}${status}`)
@@ -99,8 +114,8 @@ function MerchantLoginForm() {
               className="h-18 w-18"
             />
           </div>
-          <h2 className="text-3xl font-extrabold text-gray-900">Merchant sign in</h2>
-          <p className="mt-2 text-sm text-gray-600">Only merchant and admin accounts can access this portal.</p>
+          <h2 className="text-3xl font-extrabold text-gray-900">Accounting sign in</h2>
+          <p className="mt-2 text-sm text-gray-600">Only admin and accounting accounts can access this portal.</p>
         </div>
 
         {error && <div className="p-4 text-red-700 bg-red-100 rounded-md">{error}</div>}
@@ -145,13 +160,35 @@ function MerchantLoginForm() {
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19.5c-4.523 0-8.265-2.903-9.781-7a9.956 9.956 0 011.524-3.042M9.88 9.88a3 3 0 014.242 4.243M3 3l18 18" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19.5c-4.523 0-8.265-2.903-9.781-7a9.956 9.956 0 011.524-3.042M9.88 9.88a3 3 0 014.242 4.243M3 3l18 18"
+                      />
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
                     </svg>
                   )}
                 </button>
@@ -183,14 +220,16 @@ function MerchantLoginForm() {
   )
 }
 
-export default function MerchantLogin() {
+export default function AccountingLogin() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    }>
-      <MerchantLoginForm />
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+      }
+    >
+      <AccountingLoginForm />
     </Suspense>
   )
 }

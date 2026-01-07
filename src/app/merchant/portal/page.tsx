@@ -4,12 +4,18 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import MerchantLayout from '@/components/merchant/MerchantLayout'
 
 export default function MerchantPortal() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const [name, setName] = useState<string>('')
   const [merchantId, setMerchantId] = useState<string | null>(null)
+  const [activeStatusTab, setActiveStatusTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchBy, setSearchBy] = useState<'username' | 'user_id'>('username')
+  const [dateFilter, setDateFilter] = useState('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [pendingRequests, setPendingRequests] = useState<
     Array<{
       id: string
@@ -286,149 +292,279 @@ export default function MerchantPortal() {
     }
   }, [fetchPendingRequests, fetchTopUpStats, merchantId, supabase])
 
+  const filteredPendingRequests = useMemo(() => {
+    let rows = [...pendingRequests]
+
+    const q = searchTerm.trim().toLowerCase()
+    if (q) {
+      rows = rows.filter((r) => {
+        const field = searchBy === 'user_id' ? r.user_id : (r.username ?? '')
+        return String(field ?? '').toLowerCase().includes(q)
+      })
+    }
+
+    if (dateFilter) {
+      rows = rows.filter((r) => {
+        const d = new Date(r.created_at)
+        if (!Number.isFinite(d.getTime())) return false
+        const yyyy = d.getFullYear()
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        const key = `${yyyy}-${mm}-${dd}`
+        return key === dateFilter
+      })
+    }
+
+    rows.sort((a, b) => {
+      const at = new Date(a.created_at).getTime()
+      const bt = new Date(b.created_at).getTime()
+      const aKey = Number.isFinite(at) ? at : 0
+      const bKey = Number.isFinite(bt) ? bt : 0
+      return sortOrder === 'newest' ? bKey - aKey : aKey - bKey
+    })
+
+    return rows
+  }, [dateFilter, pendingRequests, searchBy, searchTerm, sortOrder])
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-full px-4 py-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Merchant Dashboard</h1>
-            <p className="mt-2 text-sm text-gray-600">{name ? `Signed in as: ${name}` : 'Signed in'}</p>
+    <MerchantLayout>
+      <div className="px-4 py-10 sm:px-8 lg:px-14 space-y-8">
+        <div className="rounded-3xl border border-[#183149] bg-gradient-to-r from-[#1b2b44] to-[#1a2536] px-8 py-8 text-white shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center">
+              <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v22M5 6h14M5 18h14" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <div className="text-3xl font-semibold">Topup Requests</div>
+              <div className="mt-2 text-base text-white/60">Manage and process topup requests efficiently</div>
+            </div>
+            <Link
+              href="/merchant/logs"
+              className="px-7 py-4 rounded-2xl text-base font-semibold bg-[#0a1724] border border-[#183149] text-white hover:bg-[#12314a] transition"
+            >
+              View logs
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="rounded-3xl border border-[#183149] bg-gradient-to-r from-[#5b2a1d] to-[#2a1b16] px-9 py-9 text-white shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-[#f3cc84]">Pending Topups</div>
+                <div className="mt-2 text-sm text-white/60">₱0.00</div>
+              </div>
+              <div className="text-5xl font-semibold">{stats.loading ? '…' : stats.pendingTopUps}</div>
+            </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Pending Top-ups</dt>
-                    <dd className="flex items-baseline">
-                      <div className="text-2xl font-semibold text-gray-900">
-                        {stats.loading ? '...' : stats.pendingTopUps}
-                      </div>
-                    </dd>
-                  </dl>
+          <div className="rounded-3xl border border-[#183149] bg-gradient-to-r from-[#0b3a35] to-[#071f26] px-9 py-9 text-white shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-[#8ee4b8]">My Approved Topups</div>
+                <div className="mt-2 text-sm text-white/60">₱0.00</div>
+              </div>
+              <div className="text-5xl font-semibold">{stats.loading ? '…' : stats.approvedTopUps}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-[#183149] bg-gradient-to-r from-[#1b2b44] to-[#1a2536] text-white shadow-2xl overflow-hidden">
+          <div className="px-8 pt-7 pb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+              <div className="lg:col-span-7">
+                <div className="text-xs uppercase tracking-[0.35em] text-white/60">Search</div>
+                <div className="mt-2 relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/40">
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.3-4.3" />
+                      <circle cx="11" cy="11" r="7" />
+                    </svg>
+                  </div>
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by username..."
+                    className="w-full rounded-2xl border border-[#2a3c55] bg-[#22334a] pl-11 pr-5 py-4 text-base text-white placeholder:text-white/40 focus:outline-none"
+                  />
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Approved Top-ups</dt>
-                    <dd className="flex items-baseline">
-                      <div className="text-2xl font-semibold text-gray-900">
-                        {stats.loading ? '...' : stats.approvedTopUps}
-                      </div>
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Total Amount</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {stats.loading ? '...' : `₱${stats.totalAmount.toLocaleString()}`}
-                  </p>
-                </div>
-                <Link
-                  href="/merchant/logs"
-                  className="px-3 py-2 rounded-md text-sm font-medium text-white bg-indigo-600 border border-indigo-600 hover:bg-indigo-700"
+              <div className="lg:col-span-2">
+                <div className="text-xs uppercase tracking-[0.35em] text-white/60">Search By</div>
+                <select
+                  value={searchBy}
+                  onChange={(e) => setSearchBy(e.target.value as any)}
+                  className="mt-2 w-full rounded-2xl border border-[#2a3c55] bg-[#22334a] px-5 py-4 text-base text-white focus:outline-none"
                 >
-                  Open audit logs
-                </Link>
+                  <option value="username">Username</option>
+                  <option value="user_id">User ID</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-2">
+                <div className="text-xs uppercase tracking-[0.35em] text-white/60">Date Filter</div>
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-[#2a3c55] bg-[#22334a] px-5 py-4 text-base text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="lg:col-span-1">
+                <div className="text-xs uppercase tracking-[0.35em] text-white/60">Sort</div>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="mt-2 w-full rounded-2xl border border-[#2a3c55] bg-[#22334a] px-5 py-4 text-base text-white focus:outline-none"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
               </div>
             </div>
-          </div>
 
-          <div className="border border-gray-200 rounded-lg p-3 sm:p-4 mb-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-sm font-semibold text-gray-900">Pending Top-up Requests</div>
+            <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveStatusTab('pending')}
+                  className={`px-5 py-3 rounded-2xl text-sm font-semibold border transition ${
+                    activeStatusTab === 'pending'
+                      ? 'bg-[#4f46e5] text-white border-[#6d6af2]'
+                      : 'bg-[#22334a] text-white/70 border-[#2a3c55] hover:bg-[#2a3c55]'
+                  }`}
+                >
+                  Pending <span className="ml-2 inline-flex items-center justify-center rounded-full bg-white/10 px-2.5 py-1 text-xs">{pendingRequests.length}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveStatusTab('approved')}
+                  className={`px-5 py-3 rounded-2xl text-sm font-semibold border transition ${
+                    activeStatusTab === 'approved'
+                      ? 'bg-[#4f46e5] text-white border-[#6d6af2]'
+                      : 'bg-[#22334a] text-white/70 border-[#2a3c55] hover:bg-[#2a3c55]'
+                  }`}
+                >
+                  Approved
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveStatusTab('rejected')}
+                  className={`px-5 py-3 rounded-2xl text-sm font-semibold border transition ${
+                    activeStatusTab === 'rejected'
+                      ? 'bg-[#4f46e5] text-white border-[#6d6af2]'
+                      : 'bg-[#22334a] text-white/70 border-[#2a3c55] hover:bg-[#2a3c55]'
+                  }`}
+                >
+                  Rejected
+                </button>
+              </div>
+
               <button
+                type="button"
                 onClick={() => {
                   fetchPendingRequests()
                 }}
-                className="px-3 py-2 rounded-md text-sm font-medium text-indigo-700 bg-white border border-indigo-600 hover:bg-indigo-50"
+                className="px-7 py-4 rounded-2xl text-sm font-semibold bg-[#22334a] border border-[#2a3c55] text-white hover:bg-[#2a3c55] transition"
               >
                 Refresh
               </button>
             </div>
 
-            {loadError ? <div className="mt-3 text-sm text-red-600">{loadError}</div> : null}
-            {actionError ? <div className="mt-3 text-sm text-red-600">{actionError}</div> : null}
+            {loadError ? <div className="mt-3 text-sm text-red-400">{loadError}</div> : null}
+            {actionError ? <div className="mt-3 text-sm text-red-400">{actionError}</div> : null}
+          </div>
+        </div>
 
-            {pendingRequests.length > 0 ? (
-              <div className="mt-4 space-y-3">
-                {pendingRequests.map((r) => (
-                  <div key={r.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 rounded-md">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">₱{Number(r.amount).toLocaleString()}</div>
-                      <div className="text-xs text-gray-600">User: {r.username ?? r.user_id}</div>
-                      <div className="text-xs text-gray-600">
-                        Payment: {(() => {
+        <div className="rounded-3xl border border-[#183149] bg-gradient-to-r from-[#1b2b44] to-[#1a2536] text-white shadow-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-[#22334a]">
+                <tr>
+                  <th className="px-8 py-5 text-left text-xs font-semibold uppercase tracking-[0.35em] text-white/70">User</th>
+                  <th className="px-8 py-5 text-left text-xs font-semibold uppercase tracking-[0.35em] text-white/70">Payment Method</th>
+                  <th className="px-8 py-5 text-left text-xs font-semibold uppercase tracking-[0.35em] text-white/70">Amount</th>
+                  <th className="px-8 py-5 text-left text-xs font-semibold uppercase tracking-[0.35em] text-white/70">Date</th>
+                  <th className="px-8 py-5 text-left text-xs font-semibold uppercase tracking-[0.35em] text-white/70">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#2a3c55]">
+                {activeStatusTab !== 'pending' ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-14 text-center text-sm text-white/60">
+                      No {activeStatusTab} topups found
+                    </td>
+                  </tr>
+                ) : filteredPendingRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-8 py-20 text-center text-base text-white/60">
+                      No pending topups found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPendingRequests.map((r) => (
+                    <tr key={r.id} className="bg-transparent">
+                      <td className="px-8 py-7 text-lg text-white/90">{r.username ?? r.user_id}</td>
+                      <td className="px-8 py-7 text-lg text-white/80">
+                        {(() => {
                           const notes = (r?.status_notes as string | null) || ''
                           const match = notes.match(/payment_method_id:([0-9a-fA-F-]{36})/)
                           const id = match?.[1]
                           if (!id) return 'Not specified'
                           const pm = paymentMethodsById[id]
                           if (!pm) return id
-                          if (pm.type === 'gcash') {
-                            return `${pm.provider || 'GCash'}${pm.phone ? ` (${pm.phone})` : ''}`
+                          if (pm.type === 'gcash' || pm.type === 'maya') {
+                            const label = pm.provider || (pm.type === 'maya' ? 'Maya' : 'GCash')
+                            const acct = pm.account_name ? ` - ${pm.account_name}` : ''
+                            const phone = pm.phone ? ` (${pm.phone})` : ''
+                            return `${label}${acct}${phone}`
                           }
-                          return `${pm.provider || 'Bank'}${pm.account_number_last4 ? ` (****${pm.account_number_last4})` : ''}`
+                          const bank = pm.provider || 'Bank'
+                          const acct = pm.account_name ? ` - ${pm.account_name}` : ''
+                          const last4 = pm.account_number_last4 ? ` (****${pm.account_number_last4})` : ''
+                          return `${bank}${acct}${last4}`
                         })()}
-                      </div>
-                      <div className="text-xs text-gray-500">
+                      </td>
+                      <td className="px-8 py-7 text-lg font-semibold text-white">₱{Number(r.amount).toLocaleString()}</td>
+                      <td className="px-8 py-7 text-lg text-white/70">
                         {new Date(r.created_at).toLocaleString(undefined, {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
                         })}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => updateTopUpStatus(r.id, 'approved')}
-                        disabled={actionLoadingId === r.id}
-                        className="px-3 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                      >
-                        {actionLoadingId === r.id ? 'Working...' : 'Approve'}
-                      </button>
-                      <button
-                        onClick={() => updateTopUpStatus(r.id, 'rejected')}
-                        disabled={actionLoadingId === r.id}
-                        className="px-3 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
-                      >
-                        {actionLoadingId === r.id ? 'Working...' : 'Reject'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-gray-600">No pending requests.</div>
-            )}
+                      </td>
+                      <td className="px-8 py-7">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateTopUpStatus(r.id, 'approved')}
+                            disabled={actionLoadingId === r.id}
+                            className="px-6 py-3.5 rounded-2xl text-sm font-semibold bg-[#2a3c55] border border-[#314863] text-white hover:bg-[#314863] transition disabled:opacity-50"
+                          >
+                            {actionLoadingId === r.id ? 'Working...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateTopUpStatus(r.id, 'rejected')}
+                            disabled={actionLoadingId === r.id}
+                            className="px-6 py-3.5 rounded-2xl text-sm font-semibold bg-[#22334a] border border-[#314863] text-white/80 hover:bg-[#2a3c55] transition disabled:opacity-50"
+                          >
+                            {actionLoadingId === r.id ? 'Working...' : 'Reject'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-
         </div>
       </div>
-    </div>
+    </MerchantLayout>
   )
 }

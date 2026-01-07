@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Supabase Next.js App',
+  title: 'Xhimer',
   description: 'A modern web application with Next.js and Supabase',
 }
 

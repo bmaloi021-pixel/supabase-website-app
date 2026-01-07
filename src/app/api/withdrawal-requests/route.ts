@@ -30,10 +30,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 })
     }
 
-    // Get user profile to check balance
+    // Get user profile to check withdrawable balance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('balance')
+      .select('withdrawable_balance')
       .eq('id', user.id)
       .single()
 
@@ -41,12 +41,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    // Check if user has sufficient balance
-    const userBalance = Number(profile.balance) || 0
-    if (userBalance < amount) {
+    // Check if user has sufficient withdrawable balance
+    const withdrawableBalance = Number((profile as any)?.withdrawable_balance) || 0
+    if (withdrawableBalance < amount) {
       return NextResponse.json({ 
         error: 'Insufficient balance',
-        available_balance: userBalance
+        available_balance: withdrawableBalance
       }, { status: 400 })
     }
 
