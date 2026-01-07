@@ -38,7 +38,9 @@ export default function Navbar() {
     pathname?.startsWith('/dashboard') ||
     pathname?.startsWith('/admin') ||
     pathname?.startsWith('/merchant') ||
-    pathname?.startsWith('/accounting');
+    pathname?.startsWith('/accounting') ||
+    pathname === '/login' ||
+    pathname?.startsWith('/auth/login');
   if (shouldHideNavbar) {
     return null;
   }
