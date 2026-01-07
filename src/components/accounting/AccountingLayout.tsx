@@ -14,6 +14,8 @@ export default function AccountingLayout({ children }: AccountingLayoutProps) {
   const pathname = usePathname()
   const supabase = useMemo(() => createAccountingClient(), [])
 
+  const isLoginRoute = pathname?.startsWith('/accounting/login')
+
   const [loading, setLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(true)
   const [profileName, setProfileName] = useState<string>('')
@@ -34,6 +36,10 @@ export default function AccountingLayout({ children }: AccountingLayoutProps) {
     const load = async () => {
       try {
         setIsAuthorized(true)
+
+        if (isLoginRoute) {
+          return
+        }
 
         try {
           const ok = sessionStorage.getItem('accounting_auth') === '1'
@@ -79,76 +85,78 @@ export default function AccountingLayout({ children }: AccountingLayoutProps) {
     }
 
     load()
-  }, [router, supabase])
+  }, [router, supabase, pathname, isLoginRoute])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071725] via-[#061521] to-[#040f18]">
-      <nav className="bg-[#0b1a2a] border-b border-[#183149] sticky top-0 z-40">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg overflow-hidden bg-[#0e2538] flex items-center justify-center">
-                  <img
-                    src="https://sbhcpvqygnvnjhxacpms.supabase.co/storage/v1/object/public/Public/ChatGPT%20Image%20Dec%2025,%202025,%2006_22_34%20PM.png"
-                    alt="Xhimer mark"
-                    className="w-full h-full object-cover"
-                  />
+      {!isLoginRoute ? (
+        <nav className="bg-[#0b1a2a] border-b border-[#183149] sticky top-0 z-40">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-[#0e2538] flex items-center justify-center">
+                    <img
+                      src="https://sbhcpvqygnvnjhxacpms.supabase.co/storage/v1/object/public/Public/ChatGPT%20Image%20Dec%2025,%202025,%2006_22_34%20PM.png"
+                      alt="Xhimer mark"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="text-white">
+                    <p className="text-sm font-semibold leading-tight">Xhimer</p>
+                    <p className="text-[11px] uppercase tracking-[0.25em] text-slate-300/80">Accounting Portal</p>
+                  </div>
                 </div>
-                <div className="text-white">
-                  <p className="text-sm font-semibold leading-tight">Xhimer</p>
-                  <p className="text-[11px] uppercase tracking-[0.25em] text-slate-300/80">Accounting Portal</p>
-                </div>
+
+                <Link
+                  href="/accounting/dashboard"
+                  className="ml-4 inline-flex items-center rounded-xl bg-[#5b2bd6] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#5b2bd6]/20 hover:bg-[#6d43e6] transition"
+                >
+                  Withdrawal Requests
+                </Link>
               </div>
 
-              <Link
-                href="/accounting/dashboard"
-                className="ml-4 inline-flex items-center rounded-xl bg-[#5b2bd6] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#5b2bd6]/20 hover:bg-[#6d43e6] transition"
-              >
-                Withdrawal Requests
-              </Link>
-            </div>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsAccountMenuOpen((v) => !v)}
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-white/90 hover:bg-[#12314a] transition"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <span>{profileName || profileRole || 'Account'}</span>
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
 
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsAccountMenuOpen((v) => !v)}
-                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-white/90 hover:bg-[#12314a] transition"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span>{profileName || profileRole || 'Account'}</span>
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-
-                {isAccountMenuOpen ? (
-                  <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#183149] bg-[#0b1a2a] shadow-2xl overflow-hidden">
-                    <div className="px-4 py-3 border-b border-[#183149]">
-                      <div className="text-sm font-semibold text-white">{profileName || 'Accounting User'}</div>
-                      <div className="text-[11px] uppercase tracking-[0.25em] text-slate-300/80">{profileRole || 'ACCOUNTING'}</div>
+                  {isAccountMenuOpen ? (
+                    <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#183149] bg-[#0b1a2a] shadow-2xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-[#183149]">
+                        <div className="text-sm font-semibold text-white">{profileName || 'Accounting User'}</div>
+                        <div className="text-[11px] uppercase tracking-[0.25em] text-slate-300/80">{profileRole || 'ACCOUNTING'}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsAccountMenuOpen(false)
+                          await handleSignOut()
+                        }}
+                        className="w-full text-left px-4 py-3 text-sm font-semibold text-white/90 hover:bg-[#12314a] transition"
+                      >
+                        Sign out
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setIsAccountMenuOpen(false)
-                        await handleSignOut()
-                      }}
-                      className="w-full text-left px-4 py-3 text-sm font-semibold text-white/90 hover:bg-[#12314a] transition"
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      ) : null}
 
       <main className="relative">
         {loading ? (
