@@ -6,6 +6,14 @@ export async function POST(request: NextRequest) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!serviceKey) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY' },
+        { status: 500 }
+      )
+    }
 
     const authHeader = request.headers.get('authorization')
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
@@ -15,6 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(url, anonKey)
+    const serviceClient = createClient(url, serviceKey)
     
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser(bearerToken)
@@ -31,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user profile to check withdrawable balance
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await serviceClient
       .from('profiles')
       .select('withdrawable_balance')
       .eq('id', user.id)
@@ -51,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create withdrawal request
-    const { data: withdrawalRequest, error: insertError } = await supabase
+    const { data: withdrawalRequest, error: insertError } = await serviceClient
       .from('withdrawal_requests')
       .insert({
         user_id: user.id,

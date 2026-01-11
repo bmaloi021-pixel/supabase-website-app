@@ -4,15 +4,59 @@ import { createServerClient } from '@supabase/ssr'
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl
 
-  // Only protect merchant area. This allows the main site to behave normally.
   const pathname = url.pathname
-  const isMerchantArea = pathname === '/merchant' || pathname.startsWith('/merchant/')
-  if (!isMerchantArea) return NextResponse.next()
 
-  // Always route the merchant root through the merchant login page so the user sees a login screen.
+  const hostHeader = request.headers.get('host') ?? ''
+  const host = hostHeader.split(':')[0]?.toLowerCase() ?? ''
+
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1'
+  const isAdminHost = host === 'xhimer.com'
+  const isMerchantHost = host === 'merchant.com'
+  const isAccountingHost = host === 'accounting.com'
+
+  const isInternalPath =
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/auth/') ||
+    pathname === '/favicon.ico'
+
+  // Host-based portal isolation (production domains). Do not apply this during localhost dev.
+  if (!isLocalhost && (isAdminHost || isMerchantHost || isAccountingHost) && !isInternalPath) {
+    if (pathname === '/') {
+      const dest = isAdminHost ? '/admin' : isMerchantHost ? '/merchant' : '/accounting'
+      return NextResponse.rewrite(new URL(dest, request.url))
+    }
+
+    const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
+    const isMerchantPath = pathname === '/merchant' || pathname.startsWith('/merchant/')
+    const isAccountingPath = pathname === '/accounting' || pathname.startsWith('/accounting/')
+
+    if (isAdminHost && (isMerchantPath || isAccountingPath)) {
+      return new NextResponse('Not Found', { status: 404 })
+    }
+
+    if (isMerchantHost && (isAdminPath || isAccountingPath)) {
+      return new NextResponse('Not Found', { status: 404 })
+    }
+
+    if (isAccountingHost && (isAdminPath || isMerchantPath)) {
+      return new NextResponse('Not Found', { status: 404 })
+    }
+  }
+
+  const isMerchantArea = pathname === '/merchant' || pathname.startsWith('/merchant/')
+  const isAccountingArea = pathname === '/accounting' || pathname.startsWith('/accounting/')
+  if (!isMerchantArea && !isAccountingArea) return NextResponse.next()
+
+  // Always route the portal roots through their login pages so the user sees a login screen.
   if (pathname === '/merchant') {
     const loginUrl = new URL('/merchant/login', request.url)
     loginUrl.searchParams.set('next', '/merchant/portal')
+    return NextResponse.redirect(loginUrl)
+  }
+  if (pathname === '/accounting') {
+    const loginUrl = new URL('/accounting/login', request.url)
+    loginUrl.searchParams.set('next', '/accounting/dashboard')
     return NextResponse.redirect(loginUrl)
   }
 
@@ -59,7 +103,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    const loginUrl = new URL('/merchant/login', request.url)
+    const loginPath = isMerchantArea ? '/merchant/login' : '/accounting/login'
+    const loginUrl = new URL(loginPath, request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }
@@ -71,13 +116,19 @@ export async function middleware(request: NextRequest) {
     .single()
 
   const role = (profileData as any)?.role
-  const allowed = role === 'admin' || role === 'merchant'
 
-  if (!allowed) {
-    const loginUrl = new URL('/merchant/login', request.url)
-    loginUrl.searchParams.set('next', '/merchant/portal')
-    loginUrl.searchParams.set('reason', 'merchant_only')
-    return NextResponse.redirect(loginUrl)
+  if (isMerchantArea) {
+    const allowed = role === 'merchant'
+    if (!allowed) {
+      return NextResponse.redirect(new URL('/admin/overview', request.url))
+    }
+  }
+
+  if (isAccountingArea) {
+    const allowed = role === 'accounting'
+    if (!allowed) {
+      return NextResponse.redirect(new URL('/admin/overview', request.url))
+    }
   }
 
   return response
@@ -106,5 +157,5 @@ function toUrl(dest: string, request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/merchant/:path*'],
+  matcher: ['/:path*'],
 }

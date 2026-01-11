@@ -229,7 +229,7 @@ export default function MerchantPortal() {
         return
       }
 
-      if (profile?.role !== 'merchant' && profile?.role !== 'admin') {
+      if (profile?.role !== 'merchant') {
         setLoadError('This account is not a merchant.')
         return
       }

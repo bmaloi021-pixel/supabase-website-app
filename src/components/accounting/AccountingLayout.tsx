@@ -72,7 +72,7 @@ export default function AccountingLayout({ children }: AccountingLayoutProps) {
         }
 
         const role = String((profile as any)?.role ?? '')
-        if (role !== 'admin' && role !== 'accounting') {
+        if (role !== 'accounting') {
           setIsAuthorized(false)
           return
         }
@@ -107,13 +107,6 @@ export default function AccountingLayout({ children }: AccountingLayoutProps) {
                     <p className="text-[11px] uppercase tracking-[0.25em] text-slate-300/80">Accounting Portal</p>
                   </div>
                 </div>
-
-                <Link
-                  href="/accounting/dashboard"
-                  className="ml-4 inline-flex items-center rounded-xl bg-[#5b2bd6] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#5b2bd6]/20 hover:bg-[#6d43e6] transition"
-                >
-                  Withdrawal Requests
-                </Link>
               </div>
 
               <div className="flex items-center gap-4">

@@ -70,7 +70,7 @@ async function getAdminOrAccountingClient(request: NextRequest) {
   }
 
   const role = String((profile as any)?.role ?? '')
-  if (role !== 'admin' && role !== 'accounting') {
+  if (role !== 'accounting') {
     return { errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 

@@ -47,7 +47,7 @@ async function getMerchantClient(request: NextRequest) {
     return { errorResponse: NextResponse.json({ error: profileError?.message ?? 'Forbidden' }, { status: 403 }) }
   }
 
-  if (!['merchant', 'admin'].includes(profile.role as Role)) {
+  if (!['merchant'].includes(profile.role as Role)) {
     return { errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
@@ -68,9 +68,7 @@ export async function GET(request: NextRequest) {
     .order('processed_at', { ascending: false })
     .limit(limit)
 
-  if (profile.role !== 'admin') {
-    query = query.eq('merchant_id', profile.id)
-  }
+  query = query.eq('merchant_id', profile.id)
 
   const { data, error } = await query
   if (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -14,6 +14,41 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    const redirectIfAuthed = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) return;
+
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        const role = (profileData as any)?.role;
+        if (role === 'merchant') {
+          router.replace('/merchant/portal');
+          return;
+        }
+        if (role === 'accounting') {
+          router.replace('/accounting/dashboard');
+          return;
+        }
+        if (role === 'admin') {
+          router.replace('/admin/overview');
+          return;
+        }
+
+        router.replace('/dashboard');
+      } catch {
+        // ignore; login form remains
+      }
+    };
+
+    redirectIfAuthed();
+  }, [router, supabase]);
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase();
   const trimUsername = (value: string) => value.trim();
@@ -97,7 +132,7 @@ export default function Login() {
         <div className="text-center space-y-3">
           <div className="flex justify-center">
             <Image
-              src="/xhimer-logo.png"
+              src="https://sbhcpvqygnvnjhxacpms.supabase.co/storage/v1/object/public/Public/ChatGPT%20Image%20Dec%2025,%202025,%2006_22_34%20PM.png"
               alt="Xhimer logo"
               width={72}
               height={72}

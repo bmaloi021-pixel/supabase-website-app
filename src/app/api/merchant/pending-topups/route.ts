@@ -60,7 +60,7 @@ async function getMerchantClient(request: NextRequest) {
     }
   }
 
-  if (!['merchant', 'admin'].includes(profile.role as Role)) {
+  if (!['merchant'].includes(profile.role as Role)) {
     return { errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 

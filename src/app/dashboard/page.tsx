@@ -180,6 +180,12 @@ export default function Dashboard() {
   const [isTopUpHistoryOpen, setIsTopUpHistoryOpen] = useState(false);
   const [isWithdrawalHistoryOpen, setIsWithdrawalHistoryOpen] = useState(false);
   const [isAccountWithdrawalHistoryOpen, setIsAccountWithdrawalHistoryOpen] = useState(false);
+  const [isWithdrawalRequestOpen, setIsWithdrawalRequestOpen] = useState(false);
+  const [withdrawalAmountInput, setWithdrawalAmountInput] = useState('');
+  const [withdrawalNote, setWithdrawalNote] = useState('');
+  const [isSubmittingWithdrawalRequest, setIsSubmittingWithdrawalRequest] = useState(false);
+  const [withdrawalRequestError, setWithdrawalRequestError] = useState<string | null>(null);
+  const [withdrawalRequestSuccess, setWithdrawalRequestSuccess] = useState<string | null>(null);
   const [selectedOverviewDate, setSelectedOverviewDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeAdminNav, setActiveAdminNav] = useState('dashboard');
   const [accountWithdrawals, setAccountWithdrawals] = useState<AccountWithdrawalEntry[]>([]);
@@ -540,6 +546,129 @@ export default function Dashboard() {
       </div>
     </div>
   );
+
+  const submitWithdrawalRequest = async () => {
+    setWithdrawalRequestError(null);
+    setWithdrawalRequestSuccess(null);
+
+    const normalizedAmount = parseFloat(withdrawalAmountInput.replace(/,/g, '').trim());
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      setWithdrawalRequestError('Enter a valid amount to withdraw.');
+      return;
+    }
+
+    const available = Number((profile as any)?.withdrawable_balance ?? 0);
+    if (normalizedAmount > available) {
+      setWithdrawalRequestError(`You only have ${formatCurrency(available)} available.`);
+      return;
+    }
+
+    setIsSubmittingWithdrawalRequest(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('You must be signed in to withdraw.');
+      }
+
+      const response = await fetch('/api/withdrawal-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: normalizedAmount,
+          payment_method_info: withdrawalNote ? { note: withdrawalNote } : null,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({} as any));
+      if (!response.ok) {
+        throw new Error((data as any)?.error ?? 'Failed to submit withdrawal request.');
+      }
+
+      setWithdrawalRequestSuccess('Withdrawal request submitted. Our team will process it shortly.');
+      setWithdrawalAmountInput('');
+      setWithdrawalNote('');
+      fetchAccountWithdrawals();
+    } catch (err) {
+      setWithdrawalRequestError((err as any)?.message ?? 'Failed to submit withdrawal request.');
+    } finally {
+      setIsSubmittingWithdrawalRequest(false);
+    }
+  };
+
+  const renderWithdrawalRequestModal = () => {
+    const available = Number((profile as any)?.withdrawable_balance ?? 0);
+    return (
+      <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-2xl max-h-[80vh] w-full max-w-2xl overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#7eb3b0]/70">Withdrawal</p>
+            <h2 className="text-xl font-semibold text-white">Request a withdrawal</h2>
+            <p className="mt-1 text-xs text-white/50">Available: {formatCurrency(available)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={closeWithdrawalRequest}
+            className="rounded-full border border-transparent p-2 text-white/70 hover:text-white hover:bg-white/10"
+            aria-label="Close withdrawal modal"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 text-[#cfe3e8] overflow-y-auto">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white/80">Amount</label>
+            <input
+              value={withdrawalAmountInput}
+              onChange={(e) => setWithdrawalAmountInput(e.target.value)}
+              placeholder="0.00"
+              inputMode="decimal"
+              className="w-full rounded-2xl border border-[#1a2f3f] bg-[#0b1721] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#16a7a1]/40"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white/80">Note (optional)</label>
+            <textarea
+              value={withdrawalNote}
+              onChange={(e) => setWithdrawalNote(e.target.value)}
+              rows={3}
+              placeholder="Gcash/Bank details or note"
+              className="w-full rounded-2xl border border-[#1a2f3f] bg-[#0b1721] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#16a7a1]/40"
+            />
+          </div>
+
+          {withdrawalRequestError ? <div className="text-sm text-red-400">{withdrawalRequestError}</div> : null}
+          {withdrawalRequestSuccess ? <div className="text-sm text-[#16a7a1]">{withdrawalRequestSuccess}</div> : null}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#1a2f3f] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            onClick={closeWithdrawalRequest}
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/5 sm:w-auto"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            disabled={isSubmittingWithdrawalRequest || Number.isFinite(available) ? available <= 0 : true}
+            onClick={submitWithdrawalRequest}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-5 py-3 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 disabled:opacity-50 sm:w-auto"
+          >
+            {isSubmittingWithdrawalRequest ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const refreshPackages = async () => {
     const { data: packageData, error: packageError } = await supabase
@@ -1617,9 +1746,18 @@ export default function Dashboard() {
     setIsAccountWithdrawalHistoryOpen(true);
     fetchAccountWithdrawals();
   };
+  const openWithdrawalRequest = () => {
+    setWithdrawalRequestError(null);
+    setWithdrawalRequestSuccess(null);
+    setWithdrawalAmountInput('');
+    setWithdrawalNote('');
+    selectTab('overview');
+    setIsWithdrawalRequestOpen(true);
+  };
   const closeTopUpHistory = () => setIsTopUpHistoryOpen(false);
   const closeWithdrawalHistory = () => setIsWithdrawalHistoryOpen(false);
   const closeAccountWithdrawalHistory = () => setIsAccountWithdrawalHistoryOpen(false);
+  const closeWithdrawalRequest = () => setIsWithdrawalRequestOpen(false);
 
   const openDepositModal = () => {
     setPaymentError(null);
@@ -2996,6 +3134,7 @@ export default function Dashboard() {
           <button
             type="button"
             disabled={Number((profile as any)?.withdrawable_balance ?? 0) <= 0}
+            onClick={openWithdrawalRequest}
             className="rounded-xl bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] py-3 text-center text-sm font-semibold text-[#062226] shadow-md transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Withdraw ({formatCurrency(Number((profile as any)?.withdrawable_balance ?? 0))})
@@ -3893,6 +4032,12 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
           <div className="absolute inset-0 bg-black/50" onClick={closeDepositModal} aria-hidden="true" />
           <div className="relative z-10">{renderDepositModal()}</div>
+        </div>
+      ) : null}
+      {isWithdrawalRequestOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closeWithdrawalRequest} aria-hidden="true" />
+          <div className="relative z-10">{renderWithdrawalRequestModal()}</div>
         </div>
       ) : null}
     </div>
