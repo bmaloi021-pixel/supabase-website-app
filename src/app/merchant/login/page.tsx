@@ -21,7 +21,8 @@ function MerchantLoginForm() {
   const trimUsername = (value: string) => value.trim()
 
   const rawNextPath = searchParams.get('next') || '/merchant/portal'
-  const nextPath = rawNextPath === '/merchant' ? '/merchant/portal' : rawNextPath
+  const coercedNextPath = rawNextPath === '/merchant' ? '/merchant/portal' : rawNextPath
+  const nextPath = coercedNextPath.startsWith('/merchant') && !coercedNextPath.startsWith('//') ? coercedNextPath : '/merchant/portal'
 
   useEffect(() => {
     const forceReauth = async () => {

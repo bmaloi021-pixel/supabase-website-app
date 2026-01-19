@@ -21,7 +21,8 @@ function AccountingLoginForm() {
   const trimUsername = (value: string) => value.trim()
 
   const rawNextPath = searchParams.get('next') || '/accounting/dashboard'
-  const nextPath = rawNextPath === '/accounting' ? '/accounting/dashboard' : rawNextPath
+  const coercedNextPath = rawNextPath === '/accounting' ? '/accounting/dashboard' : rawNextPath
+  const nextPath = coercedNextPath.startsWith('/accounting') && !coercedNextPath.startsWith('//') ? coercedNextPath : '/accounting/dashboard'
 
   useEffect(() => {
     const forceReauth = async () => {

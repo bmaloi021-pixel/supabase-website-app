@@ -4,7 +4,15 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 
-const PACKAGES = [
+type MarketingPackage = {
+  name: string;
+  price: string;
+  commission: string;
+  features: string[];
+  featured?: boolean;
+};
+
+const PACKAGES: MarketingPackage[] = [
   {
     name: 'Starter',
     price: '$99',
@@ -24,7 +32,7 @@ const PACKAGES = [
     commission: '40%',
     features: ['All Professional Features', 'Dedicated Account Manager', 'API Access', 'Training Webinars'],
   },
-] as const;
+];
 
 export default function PackagesSection() {
   const router = useRouter();
@@ -67,7 +75,7 @@ export default function PackagesSection() {
       ) : null}
 
       <div className="grid gap-6 md:grid-cols-3">
-        {PACKAGES.map((pkg, index) => (
+        {PACKAGES.map((pkg) => (
           <div
             key={pkg.name}
             className={`rounded-lg border-2 border-transparent p-6 transition-transform duration-200 ${
