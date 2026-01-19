@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting';
@@ -19,7 +19,7 @@ type MerchantRow = {
 
 export default function AdminMerchantsPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [loading, setLoading] = useState(true);
   const [merchants, setMerchants] = useState<MerchantRow[]>([]);
   const [error, setError] = useState<string | null>(null);

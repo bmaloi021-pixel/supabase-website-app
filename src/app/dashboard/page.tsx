@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient, createClient } from '@/lib/supabase/client';
 
 interface Profile {
   id: string;
@@ -37,6 +37,7 @@ interface Package {
   description: string;
   price: number;
   commission_rate: number;
+  interest_rate?: number;
   level: number;
   max_referrals: number | null;
   maturity_days: number;
@@ -47,6 +48,7 @@ type UserPackageRow = {
   id: string;
   user_id: string;
   package_id: string;
+  amount?: number | null;
   status: string;
   activated_at: string | null;
   matures_at: string | null;
@@ -112,7 +114,15 @@ type AccountWithdrawalEntry = {
 };
 
 const logError = (errorName: string, error: any) => {
-  console.error(`[${errorName}]`, error);
+  console.error(`[${errorName}]`, {
+    error,
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code,
+    status: error?.status,
+    statusCode: error?.statusCode,
+  });
 };
 
 export default function Dashboard() {
@@ -129,6 +139,8 @@ export default function Dashboard() {
       status: 'pending' | 'approved' | 'rejected';
       status_notes?: string | null;
       created_at: string;
+      proof_path?: string | null;
+      proof_url?: string | null;
     }>
   >([]);
   const [userPackageRow, setUserPackageRow] = useState<UserPackageRow | null>(null);
@@ -152,6 +164,7 @@ export default function Dashboard() {
   const [publicPaymentMethods, setPublicPaymentMethods] = useState<PublicPaymentMethod[]>([]);
   const [publicPaymentQrUrls, setPublicPaymentQrUrls] = useState<Record<string, string>>({});
   const [selectedPublicPaymentMethodId, setSelectedPublicPaymentMethodId] = useState<string | null>(null);
+  const [topUpProofFile, setTopUpProofFile] = useState<File | null>(null);
   const [newPackage, setNewPackage] = useState({
     name: '',
     description: '',
@@ -175,12 +188,30 @@ export default function Dashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const showUsersFinancialColumns = usersRoleFilter !== 'all';
+  const siteOrigin = useMemo(() => {
+    const rawOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const envSite = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/$/, '');
+    const envVercel = (process.env.NEXT_PUBLIC_VERCEL_URL || '').trim().replace(/\/$/, '');
+    const vercelOrigin = envVercel
+      ? envVercel.startsWith('http')
+        ? envVercel
+        : `https://${envVercel}`
+      : '';
+
+    if (rawOrigin && !rawOrigin.includes('localhost')) return rawOrigin;
+    return envSite || vercelOrigin || rawOrigin;
+  }, []);
+  const hasPendingTopUp = useMemo(
+    () => topUpRequests.some((t) => t.status === 'pending'),
+    [topUpRequests]
+  );
   const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
   const [pendingScrollTarget, setPendingScrollTarget] = useState<'packages' | 'commissions' | null>(null);
   const [isTopUpHistoryOpen, setIsTopUpHistoryOpen] = useState(false);
   const [isWithdrawalHistoryOpen, setIsWithdrawalHistoryOpen] = useState(false);
   const [isAccountWithdrawalHistoryOpen, setIsAccountWithdrawalHistoryOpen] = useState(false);
   const [isWithdrawalRequestOpen, setIsWithdrawalRequestOpen] = useState(false);
+  const [isPendingTopUpAlertOpen, setIsPendingTopUpAlertOpen] = useState(false);
   const [withdrawalAmountInput, setWithdrawalAmountInput] = useState('');
   const [withdrawalNote, setWithdrawalNote] = useState('');
   const [isSubmittingWithdrawalRequest, setIsSubmittingWithdrawalRequest] = useState(false);
@@ -193,16 +224,20 @@ export default function Dashboard() {
   const [accountWithdrawalError, setAccountWithdrawalError] = useState<string | null>(null);
   const [isBuyPackageModalOpen, setIsBuyPackageModalOpen] = useState(false);
   const [packageToPurchase, setPackageToPurchase] = useState<Package | null>(null);
+  const [packageInvestmentAmount, setPackageInvestmentAmount] = useState('');
   const [isPurchasingPackage, setIsPurchasingPackage] = useState(false);
   const [buyPackageModalError, setBuyPackageModalError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const adminSupabase = useMemo(() => createAdminClient(), []);
   const buyPackageInFlightRef = useRef(false);
   const lastRealtimeUserRefreshAtRef = useRef(0);
   const lastRealtimeUsersListRefreshAtRef = useRef(0);
   const realtimeUserRefreshInFlightRef = useRef(false);
   const packagesSectionRef = useRef<HTMLDivElement | null>(null);
   const commissionsSectionRef = useRef<HTMLDivElement | null>(null);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const realtimePollingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -267,7 +302,7 @@ export default function Dashboard() {
         .filter((up) => !!up?.withdrawn_at)
         .map((up) => ({
           id: up.id,
-          amount: Number((up as any)?.packages?.price ?? 0),
+          amount: Number((up as any)?.amount ?? (up as any)?.packages?.price ?? 0),
           withdrawnAt: up.withdrawn_at as string,
           packageName: up.packages?.name ?? up.package_id,
         }))
@@ -432,7 +467,7 @@ export default function Dashboard() {
   };
 
   const renderDepositModal = () => (
-    <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-3xl lg:max-w-5xl 2xl:max-w-6xl max-h-[85vh] overflow-hidden">
+    <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-3xl lg:max-w-5xl 2xl:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col">
       <div className="flex items-center justify-between border-b border-[#1a2f3f] px-6 py-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-[#7eb3b0]/70">Deposit</p>
@@ -451,8 +486,34 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="px-6 py-5 text-[#cfe3e8] overflow-y-auto">
-        <form onSubmit={handleTopUp} className="space-y-4">
+      <div className="flex-1 min-h-0 px-6 py-5 text-[#cfe3e8] overflow-y-auto overscroll-contain">
+        {hasPendingTopUp ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-[#d4b673]/40 bg-[#d4b673]/10 px-4 py-3 text-sm text-[#f3cc84]">
+              You already have a pending top up request. Top up is temporarily unavailable until it is approved or rejected.
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <button
+                type="button"
+                onClick={closeDepositModal}
+                className="rounded-full border border-[#1a2f3f] px-5 py-2 text-sm font-semibold text-[#7eb3b0] hover:bg-[#132f40] transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeDepositModal();
+                  openTopUpHistory();
+                }}
+                className="rounded-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-6 py-2 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition"
+              >
+                View pending request
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleTopUp} className="space-y-4">
           {publicPaymentMethods.length > 0 ? (
             <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
               <p className="text-sm font-semibold text-[#9fc3c1]">Payment method</p>
@@ -524,6 +585,21 @@ export default function Dashboard() {
             />
           </div>
 
+          <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
+            <label className="block text-sm font-semibold text-[#9fc3c1]">Upload proof</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setTopUpProofFile(e.target.files?.[0] ?? null)}
+              className="mt-2 block w-full text-sm text-white/80 file:mr-4 file:rounded-xl file:border-0 file:bg-[#132f40] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#7eb3b0] hover:file:bg-[#183a50]"
+            />
+            {topUpProofFile ? (
+              <div className="mt-2 text-xs text-[#6a8f99]">
+                Selected: <span className="font-mono text-[#9fc3c1]">{topUpProofFile.name}</span>
+              </div>
+            ) : null}
+          </div>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
@@ -542,7 +618,58 @@ export default function Dashboard() {
           </div>
 
           {paymentError ? <p className="text-sm text-red-400">{paymentError}</p> : null}
-        </form>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+
+  const closePendingTopUpAlert = () => setIsPendingTopUpAlertOpen(false);
+  const openPendingTopUpAlert = () => setIsPendingTopUpAlertOpen(true);
+
+  const renderPendingTopUpAlertModal = () => (
+    <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-lg overflow-hidden">
+      <div className="flex items-center justify-between border-b border-[#1a2f3f] px-6 py-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-[#7eb3b0]/70">Notice</p>
+          <h2 className="text-xl font-semibold text-white">Top up unavailable</h2>
+        </div>
+        <button
+          type="button"
+          onClick={closePendingTopUpAlert}
+          className="rounded-full border border-transparent p-2 text-white/70 hover:text-white hover:bg-white/10"
+          aria-label="Close pending top up alert"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="px-6 py-5 text-[#cfe3e8] space-y-4">
+        <div className="rounded-2xl border border-[#d4b673]/40 bg-[#d4b673]/10 px-4 py-3 text-sm text-[#f3cc84]">
+          You already have a pending top up request. Please wait for approval/rejection before submitting another.
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            onClick={closePendingTopUpAlert}
+            className="rounded-full border border-[#1a2f3f] px-5 py-2 text-sm font-semibold text-[#7eb3b0] hover:bg-[#132f40] transition"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closePendingTopUpAlert();
+              openTopUpHistory();
+            }}
+            className="rounded-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-6 py-2 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition"
+          >
+            View request
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -751,7 +878,7 @@ export default function Dashboard() {
   }, [showTopUpForm, user?.id]);
 
   const backupAdminSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session || !session.user) return;
 
     try {
@@ -769,7 +896,7 @@ export default function Dashboard() {
     setImpersonateLoadingId(targetUserId);
     try {
       await backupAdminSession();
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await adminSupabase.auth.getSession();
       const token = session?.access_token;
       if (!token) {
         throw new Error('Missing admin session token');
@@ -837,7 +964,7 @@ export default function Dashboard() {
         return;
       }
 
-      const { error } = await supabase.auth.setSession({
+      const { error } = await adminSupabase.auth.setSession({
         access_token: session.access_token,
         refresh_token: session.refresh_token,
       });
@@ -846,14 +973,15 @@ export default function Dashboard() {
         return;
       }
 
+      await supabase.auth.signOut();
+
       localStorage.removeItem('admin_session_backup');
       localStorage.removeItem('admin_user_id_backup');
       localStorage.removeItem('is_impersonating');
       setHasAdminBackup(false);
       setIsImpersonating(false);
 
-      // Hard navigation ensures all auth state and cookies are reloaded cleanly
-      window.location.href = '/dashboard';
+      window.location.href = '/admin/overview';
     } catch (e) {
       setImpersonateError((e as any)?.message ?? 'Failed to restore admin session');
     }
@@ -940,8 +1068,32 @@ export default function Dashboard() {
         logError('FetchTopUpRequestsError', error);
         return [];
       }
-      
-      return data || [];
+
+      const extractProofPath = (statusNotes?: string | null) => {
+        if (!statusNotes) return null;
+        const match = statusNotes.match(/proof_path:([^\s]+)/);
+        return match?.[1] ?? null;
+      };
+
+      const rows = (data || []) as any[];
+      const withSigned = await Promise.all(
+        rows.map(async (r) => {
+          const proofPath = extractProofPath(r.status_notes);
+          if (!proofPath) return { ...r, proof_path: null, proof_url: null };
+
+          const { data: signed, error: signedError } = await supabase.storage
+            .from('top-up-proofs')
+            .createSignedUrl(proofPath, 60 * 15);
+
+          if (signedError || !signed?.signedUrl) {
+            return { ...r, proof_path: proofPath, proof_url: null };
+          }
+
+          return { ...r, proof_path: proofPath, proof_url: signed.signedUrl };
+        })
+      );
+
+      return withSigned;
     } catch (err) {
       logError('FetchTopUpRequestsUnexpectedError', err);
       return [];
@@ -1140,24 +1292,177 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    // Realtime not available in @supabase/supabase-js@1.0.0
-  }, [user?.id]);
+    const userId = user?.id;
+    if (!userId) return;
+
+    const scheduleRefresh = (kind: 'profile' | 'withdrawals' | 'topups') => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+
+      realtimeRefreshTimerRef.current = window.setTimeout(async () => {
+        realtimeRefreshTimerRef.current = null;
+
+        try {
+          if (kind === 'withdrawals') {
+            await fetchAccountWithdrawals();
+            return;
+          }
+
+          if (kind === 'topups') {
+            try {
+              const nextTopUps = await fetchTopUpRequests(userId);
+              setTopUpRequests(nextTopUps);
+            } catch {
+              // ignore
+            }
+
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('balance, top_up_balance, withdrawable_balance')
+                .eq('id', userId)
+                .single();
+
+              if (!profileError && profileData) {
+                setProfile((prev) => (prev ? ({ ...prev, ...profileData } as any) : (profileData as any)));
+              }
+            } catch {
+              // ignore
+            }
+            return;
+          }
+
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('balance, top_up_balance, withdrawable_balance, role')
+              .eq('id', userId)
+              .single();
+
+            if (!profileError && profileData) {
+              setProfile((prev) => (prev ? ({ ...prev, ...profileData } as any) : (profileData as any)));
+            }
+          } catch {
+            // ignore
+          }
+        } catch {
+          // ignore
+        }
+      }, 400);
+    };
+
+    const profileChannel = supabase
+      .channel(`rt:profiles:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => {
+          console.log('[realtime] profiles change:', payload);
+          scheduleRefresh('profile');
+        }
+      )
+      .subscribe((status) => {
+        console.log('[realtime] profiles channel status:', status);
+        if (status === 'SUBSCRIBED') {
+          scheduleRefresh('profile');
+        }
+      });
+
+    const withdrawalsChannel = supabase
+      .channel(`rt:withdrawal_requests:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          console.log('[realtime] withdrawal_requests change:', payload);
+          scheduleRefresh('withdrawals');
+        }
+      )
+      .subscribe((status) => {
+        console.log('[realtime] withdrawal_requests channel status:', status);
+        if (status === 'SUBSCRIBED') {
+          scheduleRefresh('withdrawals');
+        }
+      });
+
+    const topupsChannel = supabase
+      .channel(`rt:top_up_requests:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'top_up_requests', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          console.log('[realtime] top_up_requests change:', payload);
+          scheduleRefresh('topups');
+        }
+      )
+      .subscribe((status) => {
+        console.log('[realtime] top_up_requests channel status:', status);
+        if (status === 'SUBSCRIBED') {
+          scheduleRefresh('topups');
+        }
+      });
+
+    const refreshAll = () => {
+      scheduleRefresh('profile');
+      scheduleRefresh('withdrawals');
+      scheduleRefresh('topups');
+    };
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAll();
+      }
+    };
+
+    window.addEventListener('focus', onVisibilityOrFocus);
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+
+    realtimePollingTimerRef.current = window.setInterval(() => {
+      refreshAll();
+    }, 8000);
+
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+      if (realtimePollingTimerRef.current) {
+        window.clearInterval(realtimePollingTimerRef.current);
+        realtimePollingTimerRef.current = null;
+      }
+
+      window.removeEventListener('focus', onVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(withdrawalsChannel);
+      supabase.removeChannel(topupsChannel);
+    };
+  }, [user?.id, supabase]);
 
   const handleSignOut = async () => {
+    try {
+      sessionStorage.removeItem('merchant_auth');
+      sessionStorage.removeItem('accounting_auth');
+    } catch {
+      // ignore
+    }
     await supabase.auth.signOut();
-    router.push('/login');
+    window.location.href = '/';
   };
 
-  const handleActivatePackage = async (pkg: Package) => {
+  const handleActivatePackage = async (pkg: Package, amount?: number) => {
     if (!user?.id) return;
     if (buyPackageInFlightRef.current) return;
     setPackageActionLoadingId(pkg.id);
     setPackagePurchaseError(null);
     buyPackageInFlightRef.current = true;
     try {
-      const { data, error } = await supabase.rpc('buy_package_with_balance', {
-        p_package_id: pkg.id,
-      });
+      const rpcArgs: Record<string, any> = { p_package_id: pkg.id };
+      if (amount !== undefined && amount !== null) {
+        rpcArgs.p_amount = amount;
+      }
+      const { data, error } = await supabase.rpc('buy_package_with_balance', rpcArgs);
 
       if (error) {
         const raw = error as any;
@@ -1191,6 +1496,7 @@ export default function Dashboard() {
             description,
             price,
             commission_rate,
+            interest_rate,
             level,
             max_referrals,
             maturity_days,
@@ -1218,6 +1524,7 @@ export default function Dashboard() {
             description,
             price,
             commission_rate,
+            interest_rate,
             level,
             max_referrals,
             maturity_days,
@@ -1240,6 +1547,7 @@ export default function Dashboard() {
             description,
             price,
             commission_rate,
+            interest_rate,
             level,
             max_referrals,
             maturity_days,
@@ -1760,6 +2068,10 @@ export default function Dashboard() {
   const closeWithdrawalRequest = () => setIsWithdrawalRequestOpen(false);
 
   const openDepositModal = () => {
+    if (hasPendingTopUp) {
+      openPendingTopUpAlert();
+      return;
+    }
     setPaymentError(null);
     setShowTopUpForm(true);
     setIsDepositModalOpen(true);
@@ -1781,11 +2093,18 @@ export default function Dashboard() {
     setIsBuyPackageModalOpen(true);
   };
 
+  const openBuyPackageFor = (pkg: Package) => {
+    setPackageToPurchase(pkg);
+    setBuyPackageModalError(null);
+    setIsBuyPackageModalOpen(true);
+  };
+
   const closeBuyPackageModal = () => {
     setIsBuyPackageModalOpen(false);
     setPackageToPurchase(null);
     setIsPurchasingPackage(false);
     setBuyPackageModalError(null);
+    setPackageInvestmentAmount('');
   };
 
   const renderBuyPackageModal = () => {
@@ -1799,8 +2118,9 @@ export default function Dashboard() {
     const spendableWithdrawable = Number((profile as any)?.withdrawable_balance ?? 0);
     const totalSpendable = (Number.isFinite(spendableTopUp) ? spendableTopUp : 0) +
       (Number.isFinite(spendableWithdrawable) ? spendableWithdrawable : 0);
-    const selectedPrice = Number(selectedPackage?.price ?? 0);
-    const hasEnoughForSelected = Number.isFinite(selectedPrice) ? totalSpendable >= selectedPrice : true;
+    const enteredAmount = Number(packageInvestmentAmount);
+    const amountToSpend = Number.isFinite(enteredAmount) && enteredAmount > 0 ? enteredAmount : 0;
+    const hasEnoughForSelected = amountToSpend > 0 ? totalSpendable >= amountToSpend : false;
 
     return (
       <div className="rounded-3xl bg-[#0f1f2e] border border-[#1a2f3f] shadow-[0_25px_80px_rgba(4,9,24,0.9)] w-[92vw] max-w-3xl lg:max-w-5xl 2xl:max-w-6xl max-h-[85vh] overflow-hidden">
@@ -1852,7 +2172,7 @@ export default function Dashboard() {
                           </div>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-2xl font-semibold text-[#16a7a1]">{formatCurrency(option.price)}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#16a7a1]">{(option as any).interest_rate ?? 0}% / {option.maturity_days} days</p>
                     </button>
                   );
                 })}
@@ -1862,7 +2182,14 @@ export default function Dashboard() {
                 <>
                   <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
                     <p className="text-sm text-white/70">Investment amount</p>
-                    <p className="mt-1 text-3xl font-semibold text-white">{formatCurrency(selectedPackage.price)}</p>
+                    <input
+                      value={packageInvestmentAmount}
+                      onChange={(e) => setPackageInvestmentAmount(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="Enter amount"
+                      className="mt-2 w-full rounded-xl border border-[#1a2f3f] bg-[#091522] px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#16a7a1]"
+                    />
+                    <p className="mt-2 text-xs text-white/50">You can invest any amount. Earnings are based on the plan’s interest.</p>
                   </div>
                   <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
                     <p className="text-sm text-white/70">Available funds</p>
@@ -1874,12 +2201,12 @@ export default function Dashboard() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
-                      <p className="text-xs text-white/60">Commission Rate</p>
-                      <p className="mt-1 text-xl font-semibold text-[#16a7a1]">{selectedPackage.commission_rate}%</p>
+                      <p className="text-xs text-white/60">Interest</p>
+                      <p className="mt-1 text-xl font-semibold text-[#16a7a1]">{(selectedPackage as any).interest_rate ?? 0}%</p>
                     </div>
                     <div className="rounded-2xl border border-[#1a2f3f] bg-[#0b1721] p-4">
-                      <p className="text-xs text-white/60">Level</p>
-                      <p className="mt-1 text-xl font-semibold text-white">{selectedPackage.level}</p>
+                      <p className="text-xs text-white/60">Duration</p>
+                      <p className="mt-1 text-xl font-semibold text-white">{selectedPackage.maturity_days} days</p>
                     </div>
                   </div>
                   <p className="text-sm text-white/70">{selectedPackage.description}</p>
@@ -1906,7 +2233,7 @@ export default function Dashboard() {
               if (!selectedPackage) return;
               setBuyPackageModalError(null);
               setIsPurchasingPackage(true);
-              handleActivatePackage(selectedPackage)
+              handleActivatePackage(selectedPackage, amountToSpend)
                 .then(() => {
                   setIsPurchasingPackage(false);
                   closeBuyPackageModal();
@@ -1970,6 +2297,20 @@ export default function Dashboard() {
       }
 
       setAccountWithdrawals(data.withdrawal_requests || []);
+
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('balance, top_up_balance, withdrawable_balance')
+          .eq('id', user.id)
+          .single();
+
+        if (!profileError && profileData) {
+          setProfile((prev) => (prev ? ({ ...prev, ...profileData } as any) : (profileData as any)));
+        }
+      } catch {
+        // ignore
+      }
     } catch (error) {
       const errorMsg = (error as any)?.message || 'Failed to load withdrawal history';
       setAccountWithdrawalError(errorMsg);
@@ -2025,8 +2366,26 @@ export default function Dashboard() {
       return;
     }
 
+    if (!selectedPublicPaymentMethodId) {
+      setPaymentError('Select a payment method.');
+      return;
+    }
+
+    if (!topUpProofFile) {
+      setPaymentError('Please upload your payment proof.');
+      return;
+    }
+
     setIsProcessingPayment(true);
     setPaymentError(null);
+
+    await new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => resolve());
+        return;
+      }
+      setTimeout(() => resolve(), 0);
+    });
 
     try {
       if (!user?.id) {
@@ -2035,6 +2394,25 @@ export default function Dashboard() {
 
       const amount = Number(topUpAmount);
 
+      const cleanName = String(topUpProofFile.name || 'proof')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .slice(0, 80);
+      const proofPath = `${user.id}/${Date.now()}-${cleanName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('top-up-proofs')
+        .upload(proofPath, topUpProofFile, {
+          contentType: topUpProofFile.type || 'application/octet-stream',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticNotes = `payment_method_id:${selectedPublicPaymentMethodId} proof_path:${proofPath}`;
+
       // Create a pending top-up request (server-side/admin/merchant can approve and update balances)
       const { error, status, statusText } = await supabase
         .from('top_up_requests')
@@ -2042,9 +2420,7 @@ export default function Dashboard() {
           user_id: user.id,
           amount,
           status: 'pending',
-          status_notes: selectedPublicPaymentMethodId
-            ? `payment_method_id:${selectedPublicPaymentMethodId}`
-            : null,
+          status_notes: `payment_method_id:${selectedPublicPaymentMethodId} proof_path:${proofPath}`,
         });
 
       if (error) {
@@ -2053,8 +2429,22 @@ export default function Dashboard() {
         throw error;
       }
 
+      setTopUpRequests((prev) => {
+        const next = [
+          {
+            id: optimisticId,
+            amount,
+            status: 'pending' as const,
+            status_notes: optimisticNotes,
+            created_at: new Date().toISOString(),
+          },
+          ...prev,
+        ];
+        return next.slice(0, 20);
+      });
       setTopUpAmount('');
-      setShowTopUpForm(false);
+      setTopUpProofFile(null);
+      closeDepositModal();
     
     } catch (error) {
       const raw = error as any;
@@ -2197,9 +2587,21 @@ export default function Dashboard() {
                       </p>
                     ) : null}
                   </div>
-                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[entry.status]}`}>
-                    {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
-                  </span>
+                  <div className="flex flex-col items-start gap-2 sm:items-end">
+                    {(entry as any)?.proof_url ? (
+                      <a
+                        href={(entry as any).proof_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-[#1a2f3f] bg-[#091522] px-4 py-1.5 text-xs font-semibold text-[#7eb3b0] hover:bg-[#132f40] transition"
+                      >
+                        View Proof
+                      </a>
+                    ) : null}
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[entry.status]}`}>
+                      {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2523,7 +2925,7 @@ export default function Dashboard() {
 
   const renderUserReferralCard = () => {
     const referralLink = profile?.referral_code
-      ? `${window.location.origin}/signup?ref=${profile.referral_code}`
+      ? `${siteOrigin}/signup?ref=${profile.referral_code}`
       : '';
 
     return (
@@ -3108,7 +3510,10 @@ export default function Dashboard() {
         <div className="grid gap-3">
           <button
             onClick={openDepositModal}
-            className="rounded-xl bg-gradient-to-r from-[#d4b673] to-[#f2c572] py-3 text-center text-sm font-semibold text-[#1a1a1a] shadow-md hover:opacity-90 transition"
+            aria-disabled={hasPendingTopUp}
+            className={`rounded-xl bg-gradient-to-r from-[#d4b673] to-[#f2c572] py-3 text-center text-sm font-semibold text-[#1a1a1a] shadow-md transition ${
+              hasPendingTopUp ? 'cursor-not-allowed opacity-60' : 'hover:opacity-90'
+            }`}
           >
             Deposit
           </button>
@@ -3153,7 +3558,20 @@ export default function Dashboard() {
 
   const renderTopUpCard = () => (
     <SectionCard title="Top Up" accent="yellow">
-      {!showTopUpForm ? (
+      {hasPendingTopUp ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-[#d4b673]/40 bg-[#d4b673]/10 px-4 py-3 text-sm text-[#f3cc84]">
+            You have a pending top up request. Please wait for it to be approved or rejected.
+          </div>
+          <button
+            type="button"
+            onClick={openTopUpHistory}
+            className="w-full rounded-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] px-5 py-2 text-sm font-semibold text-[#062226] shadow-md hover:opacity-90 transition"
+          >
+            View pending request
+          </button>
+        </div>
+      ) : !showTopUpForm ? (
         <button
           onClick={() => setShowTopUpForm(true)}
           className="rounded-full bg-gradient-to-r from-[#d4b673] to-[#f2c572] px-5 py-2 text-sm font-semibold text-[#1a1a1a] shadow-md hover:opacity-90 transition"
@@ -3628,8 +4046,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <p className="text-2xl font-bold text-white mt-4">{formatCurrency(pkg.price)}</p>
-              <p className="text-sm text-[#7eb3b0] mt-1">{pkg.commission_rate}% commission</p>
+              <p className="text-2xl font-bold text-white mt-4">{(pkg as any).interest_rate ?? 0}%</p>
+              <p className="text-sm text-[#7eb3b0] mt-1">{pkg.maturity_days} days</p>
               {isActive && activeRowsForPkg.length > 1 ? (
                 <p className="text-xs text-[#16a7a1] mt-2">Active: {activeRowsForPkg.length}</p>
               ) : null}
@@ -3686,7 +4104,7 @@ export default function Dashboard() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleActivatePackage(pkg)}
+                      onClick={() => openBuyPackageFor(pkg)}
                       disabled={isBusy}
                       className="w-full bg-gradient-to-r from-[#16a7a1] to-[#1ed3c2] text-[#062226] py-2 px-4 rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#16a7a1] disabled:opacity-50"
                     >
@@ -3848,18 +4266,24 @@ export default function Dashboard() {
                 </button>
               )}
               <div className="flex-shrink-0 flex items-center">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm mr-3">X</div>
+                <div className="h-8 w-8 rounded-lg overflow-hidden bg-[#0d1c26] flex items-center justify-center mr-3">
+                  <img
+                    src="https://sbhcpvqygnvnjhxacpms.supabase.co/storage/v1/object/public/Public/ChatGPT%20Image%20Dec%2025,%202025,%2006_22_34%20PM.png"
+                    alt="Xhimer mark"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <h1 className="text-xl font-bold text-white">Xhimer</h1>
               </div>
             </div>
-            <div className="flex items-center">
-              <span className="text-sm text-[#9fc3c1] mr-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="hidden sm:inline text-sm text-[#9fc3c1]">
                 {profile?.first_name} {profile?.last_name}
               </span>
               {hasAdminBackup && isImpersonating && !isAdmin && (
                 <button
                   onClick={handleReturnToAdmin}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-sm font-medium rounded-md text-[#9fc3c1] bg-[#0f1a24] hover:bg-[#1a2f3f]"
+                  className="inline-flex items-center px-3 py-2 border border-[#1a2f3f] text-xs sm:text-sm font-medium rounded-md text-[#9fc3c1] bg-[#0f1a24] hover:bg-[#1a2f3f]"
                 >
                   Return to Admin
                 </button>
@@ -3867,14 +4291,14 @@ export default function Dashboard() {
               {isAdmin && (
                 <button
                   onClick={() => router.push('/admin')}
-                  className="mr-3 inline-flex items-center px-3 py-2 border border-[#6366f1] text-sm font-medium rounded-md text-[#a5b4fc] bg-[#0f1a24] hover:bg-[#1e1b4b]"
+                  className="hidden sm:inline-flex items-center px-3 py-2 border border-[#6366f1] text-sm font-medium rounded-md text-[#a5b4fc] bg-[#0f1a24] hover:bg-[#1e1b4b]"
                 >
                   Admin
                 </button>
               )}
               <button
                 onClick={handleSignOut}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6366f1]"
+                className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6366f1]"
               >
                 Sign out
               </button>
@@ -3899,7 +4323,13 @@ export default function Dashboard() {
           >
             <div className="flex items-center justify-between px-4 h-16 border-b border-[#1a2f3f]">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-sm">X</div>
+                <div className="h-8 w-8 rounded-lg overflow-hidden bg-[#0d1c26] flex items-center justify-center">
+                  <img
+                    src="https://sbhcpvqygnvnjhxacpms.supabase.co/storage/v1/object/public/Public/ChatGPT%20Image%20Dec%2025,%202025,%2006_22_34%20PM.png"
+                    alt="Xhimer mark"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <span className="font-semibold text-white">Xhimer</span>
               </div>
               <button
@@ -3988,7 +4418,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="py-8">
+      <main className="py-6 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="mt-6 space-y-6">
             {activeTab === 'overview' && renderOverview()}
@@ -4032,6 +4462,12 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
           <div className="absolute inset-0 bg-black/50" onClick={closeDepositModal} aria-hidden="true" />
           <div className="relative z-10">{renderDepositModal()}</div>
+        </div>
+      ) : null}
+      {isPendingTopUpAlertOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/50" onClick={closePendingTopUpAlert} aria-hidden="true" />
+          <div className="relative z-10">{renderPendingTopUpAlertModal()}</div>
         </div>
       ) : null}
       {isWithdrawalRequestOpen ? (

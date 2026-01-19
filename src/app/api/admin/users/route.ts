@@ -159,10 +159,47 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const userId = body?.userId
+  const action = body?.action
   const role = body?.role
+  const password = body?.password
 
   if (!userId || typeof userId !== 'string') {
     return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+  }
+
+  if (action && typeof action === 'string') {
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Only admins can modify passwords' }, { status: 403 })
+    }
+
+    if (action !== 'reset_password' && action !== 'set_password') {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    }
+
+    const nextPassword =
+      action === 'reset_password'
+        ? process.env.ADMIN_DEFAULT_PASSWORD
+        : typeof password === 'string'
+          ? password
+          : null
+
+    if (!nextPassword) {
+      return NextResponse.json({ error: 'Missing password' }, { status: 400 })
+    }
+
+    if (typeof nextPassword !== 'string' || nextPassword.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+    }
+
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
+      password: nextPassword,
+    })
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
   }
 
   if (!role || typeof role !== 'string') {

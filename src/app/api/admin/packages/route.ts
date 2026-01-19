@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
   }
 
-  const { name, description, price, commission_rate, level, max_referrals, maturity_days } = body;
+  const { name, description, price, commission_rate, interest_rate, level, max_referrals, maturity_days } = body;
 
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ error: 'Package name is required' }, { status: 400 });
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     description: typeof description === 'string' ? description.trim() : null,
     price: Number(price) || 0,
     commission_rate: Number(commission_rate) || 0,
+    interest_rate: Number(interest_rate) || 0,
     level: Number(level) || 0,
     max_referrals: max_referrals === null || max_referrals === '' ? null : Number(max_referrals) || 0,
     maturity_days: Number(maturity_days) || 0,

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 type TopUpHistoryEntry = {
   id: string;
@@ -15,7 +15,7 @@ type TopUpHistoryEntry = {
 function AdminTopUpsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);

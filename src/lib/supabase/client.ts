@@ -52,7 +52,15 @@ const createClientWithStorageKey = (storageKey?: string): SupabaseClient<any> =>
 }
 
 export const createClient = () => {
-  return createClientWithStorageKey()
+  return createClientWithStorageKey('xhimer-user-auth')
+}
+
+export const createAdminClient = () => {
+  return createClientWithStorageKey('xhimer-admin-auth')
+}
+
+export const createMerchantClient = () => {
+  return createClientWithStorageKey('xhimer-merchant-auth')
 }
 
 export const createAccountingClient = () => {

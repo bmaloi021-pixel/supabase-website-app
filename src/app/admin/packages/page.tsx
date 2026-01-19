@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting';
@@ -13,6 +13,7 @@ type PackageRow = {
   description: string;
   price: number;
   commission_rate: number;
+  interest_rate: number;
   level: number;
   max_referrals: number | null;
   maturity_days: number;
@@ -23,8 +24,7 @@ type PackageRow = {
 const emptyPackage = {
   name: '',
   description: '',
-  price: '',
-  commission_rate: '',
+  interest_rate: '',
   level: '',
   max_referrals: '',
   maturity_days: '',
@@ -32,7 +32,7 @@ const emptyPackage = {
 
 export default function AdminPackagesPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<PackageRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +42,7 @@ export default function AdminPackagesPage() {
   const [newPackage, setNewPackage] = useState(emptyPackage);
   const [addError, setAddError] = useState<string | null>(null);
   const [addLoading, setAddLoading] = useState(false);
+  const [defaultsLoading, setDefaultsLoading] = useState(false);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -93,6 +94,66 @@ export default function AdminPackagesPage() {
     } catch (err) {
       setError((err as any)?.message ?? 'Failed to load packages');
       setPackages([]);
+    }
+  };
+
+  const createDefaultPlans = async () => {
+    if (!confirm('Create default plans (Starter, Enterprise, VIP)?')) return;
+    setError(null);
+    setDefaultsLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const plans = [
+        {
+          name: 'Starter',
+          description: '7 days plan with 20% interest.',
+          interest_rate: 20,
+          maturity_days: 7,
+          level: 1,
+        },
+        {
+          name: 'Enterprise',
+          description: '14 days plan with 50% interest.',
+          interest_rate: 50,
+          maturity_days: 14,
+          level: 2,
+        },
+        {
+          name: 'VIP',
+          description: '21 days plan with 80% interest.',
+          interest_rate: 80,
+          maturity_days: 21,
+          level: 3,
+        },
+      ];
+
+      for (const plan of plans) {
+        const res = await fetch('/api/admin/packages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({
+            name: plan.name,
+            description: plan.description,
+            price: 0,
+            commission_rate: 0,
+            interest_rate: plan.interest_rate,
+            level: plan.level,
+            max_referrals: null,
+            maturity_days: plan.maturity_days,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error ?? `Failed to create ${plan.name}`);
+        }
+      }
+
+      await fetchPackages();
+    } catch (err) {
+      setError((err as any)?.message ?? 'Failed to create default plans');
+    } finally {
+      setDefaultsLoading(false);
     }
   };
 
@@ -160,8 +221,9 @@ export default function AdminPackagesPage() {
         body: JSON.stringify({
           name: newPackage.name,
           description: newPackage.description,
-          price: toNumber(newPackage.price),
-          commission_rate: toNumber(newPackage.commission_rate),
+          price: 0,
+          commission_rate: 0,
+          interest_rate: toNumber((newPackage as any).interest_rate),
           level: toNumber(newPackage.level),
           max_referrals: newPackage.max_referrals ? toNumber(newPackage.max_referrals) : null,
           maturity_days: toNumber(newPackage.maturity_days),
@@ -208,12 +270,21 @@ export default function AdminPackagesPage() {
               <h1 className="text-3xl font-semibold text-white">Investment Packages</h1>
               <p className="text-[#9fc3c1]">Create, activate, and monitor membership packages.</p>
             </div>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#d4b673] px-4 py-2 text-sm font-semibold text-[#d4b673] hover:bg-[#d4b673]/10 transition"
-            >
-              Add Package
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <button
+                onClick={createDefaultPlans}
+                disabled={defaultsLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#16a7a1] px-4 py-2 text-sm font-semibold text-[#16a7a1] hover:bg-[#16a7a1]/10 transition disabled:opacity-60"
+              >
+                {defaultsLoading ? 'Creating…' : 'Create Default Plans'}
+              </button>
+              <button
+                onClick={() => setIsAddOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#d4b673] px-4 py-2 text-sm font-semibold text-[#d4b673] hover:bg-[#d4b673]/10 transition"
+              >
+                Add Package
+              </button>
+            </div>
           </div>
         </div>
 
@@ -246,12 +317,12 @@ export default function AdminPackagesPage() {
 
               <div className="space-y-2 text-sm text-[#9fc3c1]">
                 <div className="flex items-center justify-between">
-                  <span>Price</span>
-                  <span className="text-xl font-semibold text-white">{formatCurrency(pkg.price)}</span>
+                  <span>Interest</span>
+                  <span className="text-xl font-semibold text-white">{pkg.interest_rate}%</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Commission</span>
-                  <span className="text-white">{pkg.commission_rate}%</span>
+                  <span>Duration</span>
+                  <span className="text-white">{pkg.maturity_days} days</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Level</span>
@@ -260,10 +331,6 @@ export default function AdminPackagesPage() {
                 <div className="flex items-center justify-between">
                   <span>Max referrals</span>
                   <span className="text-white">{pkg.max_referrals ?? 'Unlimited'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Maturity</span>
-                  <span className="text-white">{pkg.maturity_days} days</span>
                 </div>
               </div>
 
@@ -349,28 +416,16 @@ export default function AdminPackagesPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-[#9fc3c1]" htmlFor="price">Price</label>
-                <input
-                  type="number"
-                  id="price"
-                  value={newPackage.price}
-                  onChange={(e) => setNewPackage({ ...newPackage, price: e.target.value })}
-                  className="w-full rounded-xl border border-[#1c2f3f] bg-[#0b1f2a] py-2 pl-10 text-sm text-white"
-                  placeholder="Enter package price"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-[#9fc3c1]" htmlFor="commission_rate">
-                  Commission Rate
+                <label className="text-sm text-[#9fc3c1]" htmlFor="interest_rate">
+                  Interest Rate
                 </label>
                 <input
                   type="number"
-                  id="commission_rate"
-                  value={newPackage.commission_rate}
-                  onChange={(e) => setNewPackage({ ...newPackage, commission_rate: e.target.value })}
+                  id="interest_rate"
+                  value={(newPackage as any).interest_rate}
+                  onChange={(e) => setNewPackage({ ...(newPackage as any), interest_rate: e.target.value })}
                   className="w-full rounded-xl border border-[#1c2f3f] bg-[#0b1f2a] py-2 pl-10 text-sm text-white"
-                  placeholder="Enter commission rate"
+                  placeholder="Enter interest rate"
                 />
               </div>
 

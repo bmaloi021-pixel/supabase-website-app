@@ -116,6 +116,61 @@ export default function AccountingDashboardPage() {
     load()
   }, [fetchWithdrawals])
 
+  useEffect(() => {
+    let timer: number | null = null
+    let polling: number | null = null
+
+    const schedule = () => {
+      if (timer) {
+        window.clearTimeout(timer)
+      }
+      timer = window.setTimeout(() => {
+        timer = null
+        fetchWithdrawals().catch(() => null)
+      }, 400)
+    }
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        schedule()
+      }
+    }
+
+    const channel = supabase
+      .channel('rt:withdrawal_requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, (payload) => {
+        console.log('[realtime] accounting withdrawal_requests change:', payload)
+        schedule()
+      })
+      .subscribe((status) => {
+        console.log('[realtime] accounting withdrawal_requests channel status:', status)
+        if (status === 'SUBSCRIBED') {
+          schedule()
+        }
+      })
+
+    window.addEventListener('focus', onVisibilityOrFocus)
+    document.addEventListener('visibilitychange', onVisibilityOrFocus)
+
+    polling = window.setInterval(() => {
+      schedule()
+    }, 7000)
+
+    return () => {
+      if (timer) {
+        window.clearTimeout(timer)
+        timer = null
+      }
+      if (polling) {
+        window.clearInterval(polling)
+        polling = null
+      }
+      window.removeEventListener('focus', onVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchWithdrawals, supabase])
+
   const stats = useMemo(() => {
     const pending = rows.filter((r) => r.status === 'pending')
     const approved = rows.filter((r) => r.status === 'approved')

@@ -5,6 +5,14 @@ export const runtime = 'nodejs'
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting'
 
+ const TOP_UP_PROOFS_BUCKET = 'top-up-proofs'
+
+ function extractProofPath(statusNotes?: string | null) {
+   if (!statusNotes) return null
+   const match = statusNotes.match(/proof_path:([^\s]+)/)
+   return match?.[1] ?? null
+ }
+
 async function getMerchantClient(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -60,8 +68,20 @@ async function getMerchantClient(request: NextRequest) {
     }
   }
 
-  if (!['merchant'].includes(profile.role as Role)) {
-    return { errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  const roleRaw = String((profile as any)?.role ?? '')
+  const role = roleRaw.trim().toLowerCase() as Role
+  if (!['merchant', 'admin'].includes(role)) {
+    return {
+      errorResponse: NextResponse.json(
+        {
+          error: 'Forbidden',
+          userId: user.id,
+          role: roleRaw,
+          roleNormalized: role,
+        },
+        { status: 403 }
+      ),
+    }
   }
 
   return { serviceClient }
@@ -113,5 +133,22 @@ export async function GET(request: NextRequest) {
     username: usernameMap[row.user_id] ?? null,
   }))
 
-  return NextResponse.json({ requests })
+  const withProofs = await Promise.all(
+    requests.map(async (r) => {
+      const proofPath = extractProofPath(r.status_notes)
+      if (!proofPath) return { ...r, proof_path: null, proof_url: null }
+
+      const { data, error: signedError } = await serviceClient.storage
+        .from(TOP_UP_PROOFS_BUCKET)
+        .createSignedUrl(proofPath, 60 * 15)
+
+      if (signedError || !data?.signedUrl) {
+        return { ...r, proof_path: proofPath, proof_url: null }
+      }
+
+      return { ...r, proof_path: proofPath, proof_url: data.signedUrl }
+    })
+  )
+
+  return NextResponse.json({ requests: withProofs })
 }

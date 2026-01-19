@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient, createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -14,6 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const adminSupabase = createAdminClient();
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase();
   const trimUsername = (value: string) => value.trim();
@@ -65,13 +66,21 @@ export default function Login() {
           .eq('id', userId)
           .single();
 
-        const role = (profileData as any)?.role;
+        const role = String((profileData as any)?.role ?? '').trim().toLowerCase();
         if (role === 'merchant') {
           await supabase.auth.signOut();
           router.push('/merchant/login?next=/merchant/portal');
           return;
         }
         if (role === 'admin') {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token && session?.refresh_token) {
+            await adminSupabase.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            });
+          }
+          await supabase.auth.signOut();
           router.push('/admin/overview');
           router.refresh();
           return;

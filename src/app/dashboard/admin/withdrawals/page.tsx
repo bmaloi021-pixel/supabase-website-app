@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 type WithdrawalHistoryEntry = {
   id: string;
@@ -13,7 +13,7 @@ type WithdrawalHistoryEntry = {
 
 export default function AdminWithdrawalsPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);

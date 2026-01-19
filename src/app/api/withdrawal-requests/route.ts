@@ -95,7 +95,15 @@ export async function GET(request: NextRequest) {
     console.log('1. Getting environment variables...')
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     console.log('Environment vars:', { url: !!url, anonKey: !!anonKey })
+
+    if (!serviceKey) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY' },
+        { status: 500 }
+      )
+    }
 
     console.log('2. Extracting auth header...')
     const authHeader = request.headers.get('authorization')
@@ -109,6 +117,7 @@ export async function GET(request: NextRequest) {
 
     console.log('3. Creating supabase client...')
     const supabase = createClient(url, anonKey)
+    const serviceClient = createClient(url, serviceKey)
     
     console.log('4. Getting authenticated user...')
     const { data: { user }, error: authError } = await supabase.auth.getUser(bearerToken)
@@ -120,7 +129,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('5. Querying withdrawal_requests table...')
-    const { data: withdrawalRequests, error } = await supabase
+    const { data: withdrawalRequests, error } = await serviceClient
       .from('withdrawal_requests')
       .select('*')
       .eq('user_id', user.id)

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MerchantLayout from '@/components/merchant/MerchantLayout'
-import { createClient } from '@/lib/supabase/client'
+import { createMerchantClient } from '@/lib/supabase/client'
 
 const WALLET_TYPES = ['gcash', 'maya'] as const
 const BANK_TYPES = ['bank', 'gotyme'] as const
@@ -53,7 +53,7 @@ const formatMethodTitle = (m: PaymentMethodRow) => {
 
 export default function MerchantPaymentMethodsPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createMerchantClient(), [])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,6 +70,7 @@ export default function MerchantPaymentMethodsPage() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isQrOpen, setIsQrOpen] = useState(false)
   const [qrMethodId, setQrMethodId] = useState<string | null>(null)
+  const pollingRef = useRef<number | null>(null)
 
   const [type, setType] = useState<PaymentType>('gcash')
   const [label, setLabel] = useState('')
@@ -135,6 +136,61 @@ export default function MerchantPaymentMethodsPage() {
     },
     [hydrateQrUrls, supabase]
   )
+
+  useEffect(() => {
+    if (!userId) return
+
+    let timer: number | null = null
+
+    const schedule = () => {
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        timer = null
+        loadMethods(userId).catch(() => null)
+      }, 400)
+    }
+
+    const channel = supabase
+      .channel(`rt:merchant:payment_methods:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_methods' },
+        (payload) => {
+          console.log('[realtime] merchant payment_methods change:', payload)
+          schedule()
+        }
+      )
+      .subscribe((status) => {
+        console.log('[realtime] merchant payment_methods channel status:', status)
+        if (status === 'SUBSCRIBED') {
+          schedule()
+        }
+      })
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        schedule()
+      }
+    }
+
+    window.addEventListener('focus', onVisibilityOrFocus)
+    document.addEventListener('visibilitychange', onVisibilityOrFocus)
+    pollingRef.current = window.setInterval(() => schedule(), 8000)
+
+    return () => {
+      if (timer) {
+        window.clearTimeout(timer)
+        timer = null
+      }
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+      window.removeEventListener('focus', onVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus)
+      supabase.removeChannel(channel)
+    }
+  }, [loadMethods, supabase, userId])
 
   const loadCreatorNames = useCallback(
     async (rows: PaymentMethodRow[]) => {

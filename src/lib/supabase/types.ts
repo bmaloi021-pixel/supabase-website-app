@@ -89,6 +89,7 @@ export interface Package {
   description: string;
   price: number;
   commission_rate: number;
+  interest_rate?: number;
   level: number;
   max_referrals: number | null;
   maturity_days: number;
@@ -100,6 +101,7 @@ export interface PackageInsert {
   description: string | null;
   price: number;
   commission_rate: number;
+  interest_rate?: number;
   level: number;
   max_referrals: number | null;
   maturity_days: number;
@@ -111,6 +113,7 @@ export interface PackageUpdate {
   description?: string | null;
   price?: number;
   commission_rate?: number;
+  interest_rate?: number;
   level?: number;
   max_referrals?: number | null;
   maturity_days?: number;
@@ -121,6 +124,7 @@ export interface UserPackage {
   id: string;
   user_id: string;
   package_id: string;
+  amount?: number | null;
   status: string;
   activated_at: string | null;
   matures_at: string | null;
@@ -133,6 +137,7 @@ export interface UserPackageInsert {
   id?: string;
   user_id: string;
   package_id: string;
+  amount?: number | null;
   status: string;
   activated_at?: string | null;
   matures_at?: string | null;
@@ -144,6 +149,7 @@ export interface UserPackageInsert {
 export interface UserPackageUpdate {
   user_id?: string;
   package_id?: string;
+  amount?: number | null;
   status?: string;
   activated_at?: string | null;
   matures_at?: string | null;

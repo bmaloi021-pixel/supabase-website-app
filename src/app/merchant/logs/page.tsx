@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createMerchantClient } from '@/lib/supabase/client'
 import MerchantLayout from '@/components/merchant/MerchantLayout'
 
 type AuditLogEntry = {
@@ -22,7 +22,7 @@ type AuditLogEntry = {
 
 export default function MerchantAuditLogsPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createMerchantClient(), [])
   const [logs, setLogs] = useState<AuditLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

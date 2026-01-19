@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createMerchantClient } from '@/lib/supabase/client'
 
 function MerchantLoginForm() {
   const [username, setUsername] = useState('')
@@ -15,7 +15,7 @@ function MerchantLoginForm() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createMerchantClient(), [])
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase()
   const trimUsername = (value: string) => value.trim()

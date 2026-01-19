@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting';
@@ -24,7 +24,7 @@ type AdminStats = {
 
 export default function AdminOverviewPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -53,7 +53,8 @@ export default function AdminOverviewPage() {
         .eq('id', session.user.id)
         .single()) as { data: { role: Role } & Record<string, any> | null };
 
-      if (!profileData || profileData.role !== 'admin') {
+      const role = String((profileData as any)?.role ?? '').trim().toLowerCase();
+      if (!profileData || role !== 'admin') {
         router.push('/dashboard');
         return;
       }

@@ -3,12 +3,12 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createMerchantClient } from '@/lib/supabase/client'
 import MerchantLayout from '@/components/merchant/MerchantLayout'
 
 export default function MerchantPortal() {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createMerchantClient(), [])
   const [name, setName] = useState<string>('')
   const [merchantId, setMerchantId] = useState<string | null>(null)
   const [activeStatusTab, setActiveStatusTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
@@ -25,6 +25,8 @@ export default function MerchantPortal() {
       created_at: string
       status: string
       status_notes?: string | null
+      proof_path?: string | null
+      proof_url?: string | null
     }>
   >([])
   const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, any>>({})
@@ -33,6 +35,7 @@ export default function MerchantPortal() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const lastRealtimeRefreshAtRef = useRef(0)
   const realtimeRefreshInFlightRef = useRef(false)
+  const pollingTimerRef = useRef<number | null>(null)
   const [stats, setStats] = useState({
     pendingTopUps: 0,
     approvedTopUps: 0,
@@ -116,7 +119,14 @@ export default function MerchantPortal() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}))
-        throw new Error(payload?.error ?? 'Failed to load pending requests')
+        const details = (() => {
+          try {
+            return JSON.stringify(payload)
+          } catch {
+            return String(payload)
+          }
+        })()
+        throw new Error(payload?.error ? `${payload.error} ${details}` : `Failed to load pending requests ${details}`)
       }
 
       const payload = await res.json().catch(() => null)
@@ -128,6 +138,8 @@ export default function MerchantPortal() {
         created_at: string
         status: string
         status_notes?: string | null
+        proof_path?: string | null
+        proof_url?: string | null
       }>
 
       const paymentMethodIds = Array.from(
@@ -229,7 +241,7 @@ export default function MerchantPortal() {
         return
       }
 
-      if (profile?.role !== 'merchant') {
+      if (String((profile as any)?.role ?? '').toLowerCase() !== 'merchant') {
         setLoadError('This account is not a merchant.')
         return
       }
@@ -251,26 +263,32 @@ export default function MerchantPortal() {
   useEffect(() => {
     if (!merchantId) return
 
+    const refreshNow = () => {
+      const now = Date.now()
+      if (now - lastRealtimeRefreshAtRef.current < 700) return
+      if (realtimeRefreshInFlightRef.current) return
+      lastRealtimeRefreshAtRef.current = now
+      realtimeRefreshInFlightRef.current = true
+      Promise.all([fetchPendingRequests(), fetchTopUpStats(merchantId)]).finally(() => {
+        realtimeRefreshInFlightRef.current = false
+      })
+    }
+
     const channel = supabase
       .channel(`merchant-portal-realtime-${merchantId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'top_up_requests' },
-        () => {
-          const now = Date.now()
-          if (now - lastRealtimeRefreshAtRef.current < 700) return
-          if (realtimeRefreshInFlightRef.current) return
-          lastRealtimeRefreshAtRef.current = now
-          realtimeRefreshInFlightRef.current = true
-          Promise.all([fetchPendingRequests(), fetchTopUpStats(merchantId)]).finally(() => {
-            realtimeRefreshInFlightRef.current = false
-          })
+        (payload) => {
+          console.log('[realtime] merchant top_up_requests change:', payload)
+          refreshNow()
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payment_methods' },
-        () => {
+        (payload) => {
+          console.log('[realtime] merchant payment_methods change:', payload)
           const now = Date.now()
           if (now - lastRealtimeRefreshAtRef.current < 700) return
           if (realtimeRefreshInFlightRef.current) return
@@ -281,9 +299,33 @@ export default function MerchantPortal() {
           })
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[realtime] merchant portal channel status:', status)
+        if (status === 'SUBSCRIBED') {
+          refreshNow()
+        }
+      })
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshNow()
+      }
+    }
+
+    window.addEventListener('focus', onVisibilityOrFocus)
+    document.addEventListener('visibilitychange', onVisibilityOrFocus)
+
+    pollingTimerRef.current = window.setInterval(() => {
+      refreshNow()
+    }, 8000)
 
     return () => {
+      if (pollingTimerRef.current) {
+        window.clearInterval(pollingTimerRef.current)
+        pollingTimerRef.current = null
+      }
+      window.removeEventListener('focus', onVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus)
       try {
         supabase.removeChannel(channel)
       } catch {
@@ -539,6 +581,16 @@ export default function MerchantPortal() {
                       </td>
                       <td className="px-8 py-7">
                         <div className="flex items-center gap-2">
+                          {r.proof_url ? (
+                            <a
+                              href={r.proof_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-6 py-3.5 rounded-2xl text-sm font-semibold bg-[#22334a] border border-[#314863] text-white/80 hover:bg-[#2a3c55] transition"
+                            >
+                              View Proof
+                            </a>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => updateTopUpStatus(r.id, 'approved')}

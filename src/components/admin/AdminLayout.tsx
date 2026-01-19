@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, ReactNode, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 type AdminLayoutProps = {
   children: ReactNode;
@@ -14,7 +14,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [profileName, setProfileName] = useState<string>('Admin');
   const [profileRole, setProfileRole] = useState<string>('Administrator');
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const pathname = usePathname();
+  const supabase = useMemo(() => createAdminClient(), []);
 
   const menuItems = [
     { icon: '🏠', label: 'Dashboard', href: '/admin/overview' },
@@ -28,8 +29,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   ];
 
   const handleSignOut = async () => {
-    await fetch('/auth/signout', { method: 'POST' });
-    router.push('/login');
+    try {
+      sessionStorage.removeItem('merchant_auth');
+      sessionStorage.removeItem('accounting_auth');
+    } catch {
+      // ignore
+    }
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      window.location.href = '/';
+    }
   };
 
   useEffect(() => {
@@ -140,25 +151,32 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
           {/* Menu Items */}
           <nav className="space-y-2 flex-1 overflow-y-auto">
-            {menuItems.map((item, index) => (
+            {menuItems.map((item) => {
+              const current = pathname || ''
+              const isExact = current === item.href
+              const isNested = item.href !== '/admin/overview' && current.startsWith(`${item.href}/`)
+              const isActive = isExact || isNested
+
+              return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsSidebarOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
-                  index === 0
+                  isActive
                     ? 'bg-gradient-to-r from-[#16a7a1]/20 to-[#d4b673]/20 text-white'
                     : 'text-[#9fc3c1] hover:bg-[#173042]'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  index === 0 ? 'bg-[#173042]' : 'bg-[#0f1f2e]'
+                  isActive ? 'bg-[#173042]' : 'bg-[#0f1f2e]'
                 }`}>
                   <span className="text-xl">{item.icon}</span>
                 </div>
                 <span className="font-medium">{item.label}</span>
               </Link>
-            ))}
+              )
+            })}
           </nav>
 
           {/* Sign Out Button */}

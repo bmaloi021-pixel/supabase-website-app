@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 type Role = 'admin' | 'user' | 'merchant' | 'accounting';
 
@@ -19,7 +19,7 @@ type ProfileRow = {
 
 export default function AdminPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createAdminClient(), []);
   const lastRealtimeProfilesRefreshAtRef = useRef(0);
   const realtimeProfilesRefreshInFlightRef = useRef(false);
 
@@ -64,7 +64,8 @@ export default function AdminPage() {
 
       setMe(myProfile as ProfileRow);
 
-      if ((myProfile as ProfileRow).role !== 'admin') {
+      const role = String((myProfile as any)?.role ?? '').trim().toLowerCase();
+      if (role !== 'admin') {
         router.push('/dashboard');
         setLoading(false);
         return;

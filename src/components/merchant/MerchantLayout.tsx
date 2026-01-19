@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createMerchantClient } from '@/lib/supabase/client'
 
 type MerchantLayoutProps = {
   children: ReactNode
@@ -14,7 +14,7 @@ export default function MerchantLayout({ children }: MerchantLayoutProps) {
   const [profileRole, setProfileRole] = useState<string>('MERCHANT')
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = useMemo(() => createMerchantClient(), [])
 
   const tabs = [
     { label: 'Cashflow Center', href: '/merchant/portal' },

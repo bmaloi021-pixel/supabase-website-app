@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 type PaymentType = 'gcash' | 'maya' | 'gotyme' | 'bank';
 
@@ -334,7 +334,7 @@ const PaymentMethodForm = ({
 
 export default function AdminPaymentMethodsPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createAdminClient(), []);
   const [isAuthorizing, setIsAuthorizing] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);

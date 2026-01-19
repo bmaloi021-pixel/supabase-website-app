@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { createAdminClient, createClient } from '@/lib/supabase/client';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -14,10 +14,17 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const adminSupabase = createAdminClient();
 
   useEffect(() => {
     const redirectIfAuthed = async () => {
       try {
+        const { data: { session: adminSession } } = await adminSupabase.auth.getSession();
+        if (adminSession?.user?.id) {
+          router.replace('/admin/overview');
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) return;
 
@@ -48,7 +55,7 @@ export default function Login() {
     };
 
     redirectIfAuthed();
-  }, [router, supabase]);
+  }, [router, supabase, adminSupabase]);
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase();
   const trimUsername = (value: string) => value.trim();
@@ -103,6 +110,14 @@ export default function Login() {
           return;
         }
         if (role === 'admin') {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token && session?.refresh_token) {
+            await adminSupabase.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            });
+          }
+          await supabase.auth.signOut();
           router.push('/admin/overview');
           router.refresh();
           return;

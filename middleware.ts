@@ -1,6 +1,71 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+function getClientIp(request: NextRequest) {
+  const xff = request.headers.get('x-forwarded-for')
+  if (xff) return xff.split(',')[0]?.trim() ?? ''
+  const realIp = request.headers.get('x-real-ip')
+  if (realIp) return realIp.trim()
+  return ''
+}
+
+function isTruthy(value: string | undefined | null) {
+  if (!value) return false
+  const v = value.trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on'
+}
+
+async function upstashRateLimit(params: {
+  request: NextRequest
+  keyPrefix: string
+  limit: number
+  windowSeconds: number
+}) {
+  const { request, keyPrefix, limit, windowSeconds } = params
+
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+
+  if (!url || !token) {
+    return { allowed: true as const, remaining: limit, resetSeconds: windowSeconds }
+  }
+
+  const ip = getClientIp(request) || 'unknown'
+  const nowSec = Math.floor(Date.now() / 1000)
+  const windowId = Math.floor(nowSec / windowSeconds)
+  const key = `rl:${keyPrefix}:${ip}:${windowId}`
+
+  // Fixed window rate limit using INCR + EXPIRE.
+  // Use a pipeline so INCR+EXPIRE are as close to atomic as possible.
+  const pipelineBody = JSON.stringify([
+    ['INCR', key],
+    ['EXPIRE', key, windowSeconds + 5],
+  ])
+
+  const res = await fetch(`${url}/pipeline`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: pipelineBody,
+  })
+
+  if (!res.ok) {
+    return { allowed: true as const, remaining: limit, resetSeconds: windowSeconds }
+  }
+
+  const json = (await res.json().catch(() => null)) as any
+  const count = Number(json?.[0]?.result ?? 0)
+  const allowed = count <= limit
+  const remaining = Math.max(0, limit - count)
+
+  const resetAt = (windowId + 1) * windowSeconds
+  const resetSeconds = Math.max(0, resetAt - nowSec)
+
+  return { allowed, remaining, resetSeconds }
+}
+
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl
 
@@ -8,8 +73,8 @@ export async function middleware(request: NextRequest) {
 
   const hostHeader = request.headers.get('host') ?? ''
   const host = hostHeader.split(':')[0]?.toLowerCase() ?? ''
-
   const isLocalhost = host === 'localhost' || host === '127.0.0.1'
+
   const isAdminHost = host === 'xhimer.com'
   const isMerchantHost = host === 'merchant.com'
   const isAccountingHost = host === 'accounting.com'
@@ -19,6 +84,70 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/') ||
     pathname.startsWith('/auth/') ||
     pathname === '/favicon.ico'
+
+  const isPublicPagePath =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname.startsWith('/merchant/login') ||
+    pathname.startsWith('/accounting/login')
+
+  const shouldApplyRateLimit =
+    !pathname.startsWith('/_next/') &&
+    pathname !== '/favicon.ico' &&
+    !pathname.startsWith('/assets/')
+
+  // Rate limiting (Upstash) - applies to BOTH pages and APIs.
+  // Skip localhost by default unless explicitly enabled.
+  const enableOnLocalhost = isTruthy(process.env.UPSTASH_RATE_LIMIT_ON_LOCALHOST)
+  const canRateLimit = shouldApplyRateLimit && (!isLocalhost || enableOnLocalhost)
+
+  if (canRateLimit) {
+    const isApi = pathname.startsWith('/api/')
+
+    // Defaults
+    let limit = 120
+    let windowSeconds = 60
+    let keyPrefix = isApi ? 'api' : 'page'
+
+    // More strict on auth-related pages
+    if (!isApi && isPublicPagePath) {
+      limit = 20
+      windowSeconds = 60
+      keyPrefix = 'page-auth'
+    }
+
+    // Strict for sensitive APIs
+    if (isApi) {
+      limit = 60
+      windowSeconds = 60
+      keyPrefix = 'api-default'
+
+      if (request.method === 'POST' && pathname === '/api/withdrawal-requests') {
+        limit = 10
+        windowSeconds = 60
+        keyPrefix = 'api-withdrawal-post'
+      }
+
+      if (pathname.startsWith('/api/merchant/') || pathname.startsWith('/api/accounting/') || pathname.startsWith('/api/admin/')) {
+        limit = 30
+        windowSeconds = 60
+        keyPrefix = 'api-privileged'
+      }
+    }
+
+    const rl = await upstashRateLimit({ request, keyPrefix, limit, windowSeconds })
+    if (!rl.allowed) {
+      return new NextResponse('Too Many Requests', {
+        status: 429,
+        headers: {
+          'Retry-After': String(rl.resetSeconds),
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(rl.remaining),
+        },
+      })
+    }
+  }
 
   // Host-based portal isolation (production domains). Do not apply this during localhost dev.
   if (!isLocalhost && (isAdminHost || isMerchantHost || isAccountingHost) && !isInternalPath) {
