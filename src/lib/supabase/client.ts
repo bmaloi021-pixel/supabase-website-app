@@ -6,6 +6,25 @@ declare global {
   var __supabaseBrowserClient: SupabaseClient<any> | undefined
   // eslint-disable-next-line no-var
   var __supabaseBrowserClientsByStorageKey: Record<string, SupabaseClient<any> | undefined> | undefined
+  // eslint-disable-next-line no-var
+  var __supabaseBrowserClientsByStorageKeyConfigVersion: Record<string, number | undefined> | undefined
+}
+
+const SCOPED_CLIENT_CONFIG_VERSION = 1
+const SHARED_STORAGE_KEY = 'xhimer-auth'
+
+const cleanupLegacySupabaseKeys = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const keys = Object.keys(window.localStorage)
+    for (const k of keys) {
+      if (k.startsWith('sb-')) {
+        window.localStorage.removeItem(k)
+      }
+    }
+  } catch {
+    // ignore
+  }
 }
 
 const getEnv = () => {
@@ -38,31 +57,42 @@ const createClientWithStorageKey = (storageKey?: string): SupabaseClient<any> =>
     return globalThis.__supabaseBrowserClient
   }
 
-  globalThis.__supabaseBrowserClientsByStorageKey ??= {}
+  cleanupLegacySupabaseKeys()
 
-  if (!globalThis.__supabaseBrowserClientsByStorageKey[storageKey]) {
+  globalThis.__supabaseBrowserClientsByStorageKey ??= {}
+  globalThis.__supabaseBrowserClientsByStorageKeyConfigVersion ??= {}
+
+  const cached = globalThis.__supabaseBrowserClientsByStorageKey[storageKey]
+  const cachedVersion = globalThis.__supabaseBrowserClientsByStorageKeyConfigVersion[storageKey]
+
+  if (!cached || cachedVersion !== SCOPED_CLIENT_CONFIG_VERSION) {
     globalThis.__supabaseBrowserClientsByStorageKey[storageKey] = createSupabaseClient(supabaseUrl, supabaseKey, {
       auth: {
         storageKey,
+        storage: window.localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
       },
     })
+    globalThis.__supabaseBrowserClientsByStorageKeyConfigVersion[storageKey] = SCOPED_CLIENT_CONFIG_VERSION
   }
 
   return globalThis.__supabaseBrowserClientsByStorageKey[storageKey]!
 }
 
 export const createClient = () => {
-  return createClientWithStorageKey('xhimer-user-auth')
+  return createClientWithStorageKey(SHARED_STORAGE_KEY)
 }
 
 export const createAdminClient = () => {
-  return createClientWithStorageKey('xhimer-admin-auth')
+  return createClientWithStorageKey(SHARED_STORAGE_KEY)
 }
 
 export const createMerchantClient = () => {
-  return createClientWithStorageKey('xhimer-merchant-auth')
+  return createClientWithStorageKey(SHARED_STORAGE_KEY)
 }
 
 export const createAccountingClient = () => {
-  return createClientWithStorageKey('xhimer-accounting-auth')
+  return createClientWithStorageKey(SHARED_STORAGE_KEY)
 }

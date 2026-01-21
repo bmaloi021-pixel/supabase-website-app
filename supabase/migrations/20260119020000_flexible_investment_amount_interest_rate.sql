@@ -37,7 +37,7 @@ begin
   if final_amount <= 0 then
     raise exception 'Invalid amount';
   end if;
-
+  
   select * into pkg
   from public.packages
   where id = p_package_id;

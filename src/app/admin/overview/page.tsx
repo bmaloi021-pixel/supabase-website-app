@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -25,6 +26,7 @@ type AdminStats = {
 export default function AdminOverviewPage() {
   const router = useRouter();
   const supabase = useMemo(() => createAdminClient(), []);
+  const authRecoveryStartedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -41,26 +43,30 @@ export default function AdminOverviewPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          router.replace('/login');
+          return;
+        }
+
+        const { data: profileData } = (await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()) as { data: { role: Role } & Record<string, any> | null };
+
+        const role = String((profileData as any)?.role ?? '').trim().toLowerCase();
+        if (!profileData || role !== 'admin') {
+          router.replace('/dashboard');
+          return;
+        }
+
+        setProfile(profileData);
+        setLoading(false);
+      } catch {
+        router.replace('/login');
       }
-
-      const { data: profileData } = (await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()) as { data: { role: Role } & Record<string, any> | null };
-
-      const role = String((profileData as any)?.role ?? '').trim().toLowerCase();
-      if (!profileData || role !== 'admin') {
-        router.push('/dashboard');
-        return;
-      }
-
-      setProfile(profileData);
-      setLoading(false);
     };
 
     checkAuth();
@@ -69,29 +75,48 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     const fetchStats = async () => {
       if (!profile) return;
+      if (authRecoveryStartedRef.current) return;
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
+        if (!token) {
+          throw new Error('Missing admin session token');
+        }
         
         const params = new URLSearchParams();
         if (filterDate) params.append('date', filterDate);
         
         const response = await fetch(`/api/admin/overview?${params.toString()}`, {
           headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
         });
 
+        const data = await response.json().catch(() => ({} as any));
         if (!response.ok) {
-          throw new Error('Failed to fetch stats');
+          const message = (data as any)?.error ?? `Failed to fetch stats (${response.status})`;
+          throw new Error(message);
         }
 
-        const data = await response.json();
         setStats(data.stats);
       } catch (err) {
         console.error('Error fetching stats:', err);
-        setError('Failed to load statistics');
+        const message = (err as any)?.message ?? 'Failed to load statistics';
+        setError(message);
+
+        const normalized = String(message).toLowerCase();
+        const isAuthIssue =
+          normalized.includes('auth session missing') ||
+          normalized.includes('session from session_id claim') ||
+          normalized.includes('jwt expired') ||
+          normalized.includes('invalid jwt') ||
+          normalized.includes('unauthorized');
+
+        if (isAuthIssue && !authRecoveryStartedRef.current) {
+          authRecoveryStartedRef.current = true;
+          router.replace('/login');
+        }
       }
     };
 

@@ -1,38 +1,57 @@
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient, createClient } from '@/lib/supabase/client';
 
-export default function Login() {
+function LoginInner() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const adminSupabase = createAdminClient();
 
   useEffect(() => {
     const redirectIfAuthed = async () => {
       try {
-        const { data: { session: adminSession } } = await adminSupabase.auth.getSession();
-        if (adminSession?.user?.id) {
+        if (searchParams.get('reset') === '1') {
+          try {
+            const keys = Object.keys(localStorage);
+            for (const k of keys) {
+              if (k.startsWith('sb-')) {
+                localStorage.removeItem(k);
+              }
+            }
+            localStorage.removeItem('admin_session_backup');
+            localStorage.removeItem('admin_user_id_backup');
+            localStorage.removeItem('is_impersonating');
+          } catch {
+            // ignore
+          }
+          return;
+        }
+
+        const { data: { user: adminUser }, error: adminUserError } = await adminSupabase.auth.getUser();
+        if (!adminUserError && adminUser?.id) {
           router.replace('/admin/overview');
           return;
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.id) return;
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user?.id) return;
 
         const { data: profileData } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', session.user.id)
-          .single();
+          .eq('id', user.id)
+          .maybeSingle();
 
         const role = (profileData as any)?.role;
         if (role === 'merchant') {
@@ -55,7 +74,7 @@ export default function Login() {
     };
 
     redirectIfAuthed();
-  }, [router, supabase, adminSupabase]);
+  }, [router, supabase, adminSupabase, searchParams]);
 
   const normalizeUsername = (value: string) => value.trim().toLowerCase();
   const trimUsername = (value: string) => value.trim();
@@ -89,6 +108,14 @@ export default function Login() {
     try {
       await signInWithUsername(username);
 
+      const { data: { session: postLoginSession }, error: postLoginSessionError } = await supabase.auth.getSession();
+      if (postLoginSessionError) {
+        throw postLoginSessionError;
+      }
+      if (!postLoginSession?.user?.id) {
+        throw new Error('Login succeeded but no session was created');
+      }
+
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       if (userId) {
@@ -96,28 +123,43 @@ export default function Login() {
           .from('profiles')
           .select('role')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
 
-        const role = (profileData as any)?.role;
+        if (!profileData) {
+          try {
+            await supabase
+              .from('profiles')
+              .upsert(
+                {
+                  id: userId,
+                  username: `user_${Date.now()}`,
+                  first_name: 'User',
+                  last_name: 'Name',
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'id' }
+              );
+          } catch {
+            // ignore
+          }
+        }
+
+        const { data: profileDataAfter } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const role = (profileDataAfter as any)?.role;
         if (role === 'merchant') {
-          await supabase.auth.signOut();
-          router.push('/merchant/login?next=/merchant/portal');
+          router.push('/merchant/portal');
           return;
         }
         if (role === 'accounting') {
-          await supabase.auth.signOut();
-          router.push('/accounting/login?next=/accounting/dashboard');
+          router.push('/accounting/dashboard');
           return;
         }
         if (role === 'admin') {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token && session?.refresh_token) {
-            await adminSupabase.auth.setSession({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-          }
-          await supabase.auth.signOut();
           router.push('/admin/overview');
           router.refresh();
           return;
@@ -247,5 +289,13 @@ export default function Login() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-100" />}> 
+      <LoginInner />
+    </Suspense>
   );
 }

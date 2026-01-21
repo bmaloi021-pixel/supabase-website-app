@@ -57,6 +57,14 @@ export default function Login() {
     try {
       await signInWithUsername(username);
 
+      const { data: { session: postLoginSession }, error: postLoginSessionError } = await supabase.auth.getSession();
+      if (postLoginSessionError) {
+        throw postLoginSessionError;
+      }
+      if (!postLoginSession?.user?.id) {
+        throw new Error('Login succeeded but no session was created');
+      }
+
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       if (userId) {
@@ -64,23 +72,39 @@ export default function Login() {
           .from('profiles')
           .select('role')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
 
-        const role = String((profileData as any)?.role ?? '').trim().toLowerCase();
+        if (!profileData) {
+          try {
+            await supabase
+              .from('profiles')
+              .upsert(
+                {
+                  id: userId,
+                  username: `user_${Date.now()}`,
+                  first_name: 'User',
+                  last_name: 'Name',
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'id' }
+              );
+          } catch {
+            // ignore
+          }
+        }
+
+        const { data: profileDataAfter } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const role = String((profileDataAfter as any)?.role ?? '').trim().toLowerCase();
         if (role === 'merchant') {
-          await supabase.auth.signOut();
-          router.push('/merchant/login?next=/merchant/portal');
+          router.push('/merchant/portal');
           return;
         }
         if (role === 'admin') {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token && session?.refresh_token) {
-            await adminSupabase.auth.setSession({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-          }
-          await supabase.auth.signOut();
           router.push('/admin/overview');
           router.refresh();
           return;

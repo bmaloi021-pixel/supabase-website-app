@@ -25,6 +25,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { icon: '💳', label: 'Payment Methods', href: '/admin/payment-methods' },
     { icon: '💰', label: 'Cashflow Center', href: '/admin/cashflow' },
     { icon: '💵', label: 'Commissions', href: '/admin/commissions' },
+    { icon: '🗓️', label: 'Payout Calendar', href: '/admin/payout-calendar' },
     { icon: '📦', label: 'Investment Plans', href: '/admin/packages' },
   ];
 
@@ -52,7 +53,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         .from('profiles')
         .select('first_name, last_name, role')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (data) {
         setProfileName(`${data.first_name ?? ''} ${data.last_name ?? ''}`.trim() || 'Admin');

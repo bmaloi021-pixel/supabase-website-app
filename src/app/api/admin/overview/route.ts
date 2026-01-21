@@ -11,6 +11,45 @@ type GetAdminClientResult = {
   errorResponse?: NextResponse;
 };
 
+type SupabaseAuthUser = {
+  id: string;
+  [key: string]: any;
+};
+
+async function getUserFromBearerToken(args: {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  bearerToken: string;
+}): Promise<{ user: SupabaseAuthUser | null; errorMessage?: string }> {
+  const res = await fetch(`${args.supabaseUrl}/auth/v1/user`, {
+    method: 'GET',
+    headers: {
+      apikey: args.supabaseAnonKey,
+      Authorization: `Bearer ${args.bearerToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({} as any));
+    return {
+      user: null,
+      errorMessage:
+        (json as any)?.msg ??
+        (json as any)?.error_description ??
+        (json as any)?.message ??
+        'Unauthorized',
+    };
+  }
+
+  const user = (await res.json().catch(() => null)) as SupabaseAuthUser | null;
+  if (!user?.id) {
+    return { user: null, errorMessage: 'Unauthorized' };
+  }
+
+  return { user };
+}
+
 async function getAdminClientAndAssertAdmin(request: NextRequest): Promise<GetAdminClientResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -31,17 +70,16 @@ async function getAdminClientAndAssertAdmin(request: NextRequest): Promise<GetAd
     return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 
-  const anonClient = createClient(url, anonKey);
-  const {
-    data: { user: userData },
-    error: userError,
-  } = await anonClient.auth.getUser(bearerToken);
+  const { user: userData, errorMessage: userErrorMessage } = await getUserFromBearerToken({
+    supabaseUrl: url,
+    supabaseAnonKey: anonKey,
+    bearerToken,
+  });
 
   if (!userData) {
-    if (userError) {
-      return { errorResponse: NextResponse.json({ error: userError.message }, { status: 401 }) };
-    }
-    return { errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    return {
+      errorResponse: NextResponse.json({ error: userErrorMessage ?? 'Unauthorized' }, { status: 401 }),
+    };
   }
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
